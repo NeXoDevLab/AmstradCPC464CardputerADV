@@ -1,0 +1,21 @@
+.build*/
+.DS_Store
+__pycache__/
+._*
+.venv/
+*.pyc
+*.elf
+*.map
+*.ppm
+# ROMs, games and local archives are never published with the emulator.
+*.ROM
+*.rom
+*.DSK
+*.dsk
+*.CDT
+*.cdt
+*.SNA
+*.sna
+*.zip
+.env
+.env.*

@@ -1,0 +1,13 @@
+name: Synthetic peripheral tests
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  peripherals:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test keyboard, palette, tape, FDC and AY without copyrighted media
+        run: sh scripts/check-peripherals.sh
