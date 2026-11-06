@@ -14,7 +14,7 @@ teclado integrado y reproduce audio AY y la señal de carga de cassette.
 Es la composición digital de 240×135, ampliada aquí; no una fotografía.*
 
 [Guía completa en español](docs/GUIA.md) ·
-[Descargar aplicación FIX4](firmware/AmstradCPC464-CardputerADV-FIX4-app.bin) ·
+[Descargar firmware FIX4](https://github.com/NeXoDevLab/AmstradCPC464CardputerADV/releases/tag/v0.1.0-fix4) ·
 [Instalación del BIN](docs/GUIA.md#5-actualizar-con-el-bin) ·
 [Pruebas y límites](VALIDACION.md)
 
