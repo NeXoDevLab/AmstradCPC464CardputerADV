@@ -4,19 +4,29 @@ Emulador de **Amstrad CPC 464** para **M5Stack Cardputer ADV**, escrito en C++ y
 Arduino. Arranca desde ROMs en microSD, lee discos DSK y cintas CDT, utiliza el
 teclado integrado y reproduce audio AY y la señal de carga de cassette.
 
-**Versión: FIX9 · volumen inicial: 30% · proyecto en desarrollo.**
-
-<p align="center">
-  <img src="docs/images/carga-turrican.png" width="720" alt="Captura del Cardputer ADV cargando Turrican con franjas de color en el borde">
-</p>
-
-*Captura obtenida por USB del Cardputer en FIX4 durante la carga de Turrican.
-Es la composición digital de 240×135, ampliada aquí; no una fotografía.*
+**Versión: FIX12 · volumen inicial: 30% · proyecto en desarrollo.**
 
 [Guía completa en español](docs/GUIA.md) ·
-[Descargar FIX9 para Launcher](https://github.com/NeXoDevLab/AmstradCPC464CardputerADV/releases/tag/v0.1.2-fix9) ·
+[BIN FIX12 para Launcher](firmware/AmstradCPC464-CardputerADV-FIX12-app.bin) ·
 [Instalación del BIN](docs/GUIA.md#5-actualizar-con-el-bin) ·
 [Pruebas y límites](VALIDACION.md)
+
+## Capturas y vídeos actuales
+
+| BASIC · FIX12 | Cinta original · FIX12 | Juego cargado · FIX12 |
+| :---: | :---: | :---: |
+| <img src="docs/images/basic-fix12-lcd.png" width="240" height="135" alt="BASIC real en FIX12, sin la raya vertical antigua"> | <img src="docs/images/carga-original-fix12.png" width="240" height="135" alt="Carga original de Fernando Martín, captura USB real de FIX12"> | <img src="docs/images/juego-fix12.png" width="240" height="135" alt="Menú real del juego tras la carga en FIX12"> |
+
+| Fernando Martín · 4:51 | Olé Toro · 5:57 |
+| :---: | :---: |
+| <a href="https://nexodevlab.github.io/AmstradCPC464CardputerADV/#fernando"><img src="docs/media/fernando-martin-poster.png" width="400" alt="Reproducir Fernando Martín dentro de la pantalla del Cardputer ADV"></a> | <a href="https://nexodevlab.github.io/AmstradCPC464CardputerADV/#ole-toro"><img src="docs/media/ole-toro-poster.png" width="400" alt="Reproducir Olé Toro dentro de la pantalla del Cardputer ADV"></a> |
+
+**[Abrir la galería con los dos reproductores en una fila](https://nexodevlab.github.io/AmstradCPC464CardputerADV/#videos).**
+La LCD de cada vídeo conserva sus **240×135 píxeles** dentro de la fotografía
+facilitada del Cardputer ADV. Las cintas están completas y mantienen su sonido.
+Las tres capturas son de FIX12; los vídeos se grabaron en FIX11, con el mismo
+filtro de pantalla. [Procedencia](docs/images/README.md) ·
+[Comparación del texto](docs/images/texto-fix11-comparacion.png).
 
 ## Qué incluye
 
@@ -24,7 +34,8 @@ Es la composición digital de 240×135, ampliada aquí; no una fotografía.*
 - Vídeo a color: BASIC azul marino y amarillo, con la imagen completa escalada
   a la LCD de 240×135.
 - Selector de juegos desde microSD; oculta los archivos auxiliares `._` de macOS.
-- Lectura DSK estándar/Extended por sectores y búsqueda automática del cargador.
+- Lectura DSK estándar/Extended y búsqueda automática del cargador, incluidos
+  ejecutables sin extensión o con una extensión distinta de BAS/BIN.
 - Cinta CDT por streaming, motor y pausas controlados por el CPC.
 - Modo de carga original con bordes de color y sonido procedentes de la
   emulación, además de modo rápido y silencioso.
@@ -44,23 +55,20 @@ quedan directamente en `GAMES/` también aparecen en el selector.
 FIX9 arranca con el volumen al 30% y permite ajustarlo con `Fn` + `=` (tecla
 del signo `+`) y `Fn` + `-` en pasos del 5%, durante la emulación y en el
 selector. Sin Fn, los signos mantienen su función en el CPC.
-
-## Imágenes del dispositivo
-
-| BASIC | Cinta original |
-| --- | --- |
-| ![BASIC de FIX5 con Launcher, azul marino y amarillo](docs/images/basic-fix5-launcher.png) | ![Bordes reales durante la carga](docs/images/carga-original.png) |
-
-![Profanation 2 a pantalla completa en FIX6, cargado desde CDT](docs/images/profanation-fix6-lcd.png)
-
-Son capturas digitales del framebuffer o de la composición LCD enviadas por USB.
-[Procedencia y versiones de las imágenes](docs/images/README.md).
+FIX10 reconoce cargadores DSK sin extensión o con extensiones no habituales
+mediante su cabecera AMSDOS, y separa el movimiento por filas y páginas.
+FIX11 mejora la lectura del texto al reducir la imagen: conserva los trazos
+finos y utiliza colores RGB565 para suavizar sus bordes, manteniendo el área
+completa y los colores planos originales del CPC.
+FIX12 activa las flechas impresas y espacio para jugar sin mantener Fn al cargar
+un CDT, DSK o SNA. Fn+J permite volver al teclado de BASIC; el arranque en BASIC
+conserva la escritura de signos. El volumen sigue usando Fn+= y Fn+-.
 
 ## Empezar
 
 1. Prepara una microSD FAT32 con las ROMs del CPC 464 y tus juegos:
    [estructura exacta](docs/GUIA.md#2-preparar-la-microsd).
-2. Con M5Launcher, copia el BIN **FIX9-app.bin** a la SD y elige instalarlo
+2. Con M5Launcher, copia el BIN **FIX12-app.bin** a la SD y elige instalarlo
    desde Launcher. Para una primera instalación sin Launcher utiliza Arduino
    IDE/CLI. [Procedimientos](docs/GUIA.md#5-actualizar-con-el-bin).
 3. Reinicia el Cardputer. Debe aparecer BASIC.
@@ -84,7 +92,8 @@ Son capturas digitales del framebuffer o de la composición LCD enviadas por USB
 | Tecla | Acción |
 | --- | --- |
 | Tab | Selector de juegos |
-| Coma / punto, o cursores | Navegar en el selector |
+| Arriba / abajo; también `;` / `.` | Mover una entrada en el selector |
+| Izquierda / derecha; también `,` / `/` | Cambiar una página de seis entradas |
 | Enter | Entrar en una carpeta o cargar un juego |
 | Retroceso / `[ .. ] Volver` | Volver a la carpeta anterior |
 | O / R, en el selector | Carga original / modo rápido |
@@ -93,8 +102,9 @@ Son capturas digitales del framebuffer o de la composición LCD enviadas por USB
 | Fn+B | Mostrar el borde fuera de la carga |
 | Fn+= / Fn+- | Subir / bajar volumen en pasos del 5% |
 | + / - / = sin Fn | Escribir los signos dentro del CPC |
-| Fn + flechas impresas | Cursores CPC y joystick 0 |
-| Fn+espacio | Disparo |
+| Flechas impresas, sin Fn | Cursores CPC y joystick 0 al cargar un juego |
+| Espacio, sin Fn | Disparo; también envía espacio al CPC |
+| Fn+J | Alternar controles de juego y teclado de BASIC |
 
 [Todos los controles y ejemplos de carga](docs/GUIA.md#6-controles).
 
@@ -109,7 +119,7 @@ Con Arduino CLI y las dependencias instaladas:
 sh scripts/build.sh
 ```
 
-La configuración de FIX9 desactiva PSRAM y utiliza flash QIO de 8 MB,
+La configuración de FIX12 desactiva PSRAM y utiliza flash QIO de 8 MB,
 `default_8MB`, Hardware CDC/JTAG y USB CDC al arrancar.
 [Guía de compilación, instalación y descarga](docs/GUIA.md#4-compilar-con-arduino-cli).
 
@@ -125,7 +135,8 @@ La configuración de FIX9 desactiva PSRAM y utiliza flash QIO de 8 MB,
 
 **Profanation 2** se ha comprobado por DSK y CDT en las pruebas del núcleo; en
 el Cardputer se registraron la partida desde DSK y la lectura completa del CDT
-hasta su introducción. La imagen de Turrican muestra una carga en curso.
+hasta su introducción. Fernando Martín y Olé Toro se grabaron hasta sus menús
+en FIX11; se repitió la carga de Fernando Martín para las capturas FIX12.
 Esto no implica compatibilidad con todos los juegos o cargadores.
 
 Faltan escritura/formateo de discos, RAM de 128 KiB, bloques CSW/generalizados

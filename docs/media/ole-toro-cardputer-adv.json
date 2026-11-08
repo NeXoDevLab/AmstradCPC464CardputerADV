@@ -1,0 +1,29 @@
+{
+  "seconds": 357.2275,
+  "frames": 17890,
+  "video_frames": 8945,
+  "protocol": "CPCREC2 240 135 16000 4000000 79872",
+  "timing": "Original CPC emulated clock; USB transfer delays excluded",
+  "ending": "Real automatically displayed keyboard/joystick menu; no appended still",
+  "full_tape_unabridged": true,
+  "game": "Olé Toro",
+  "video": "ole-toro-cardputer-adv.mp4",
+  "captured_firmware": "FIX11",
+  "source_sha256": "d5581fbd6ea20e5dc918387bf8f4add1f1f39f3375404045314139c7ef95e5a9",
+  "sha256": "e754bea1f4e2760fc6f960a1609bdd0060d47b56a4b4934f14b4bcf5c65a192d",
+  "photograph": "User-supplied Cardputer ADV photograph; M5Stack product image",
+  "photograph_source": "https://docs.m5stack.com/en/core/Cardputer-Adv",
+  "photograph_sha256": "43557534a73b2e8d71f2d2b279d134c0c01411c2d8f54960890f39d3a9f41b6f",
+  "canvas": [
+    880,
+    580
+  ],
+  "screen_rect": [
+    231,
+    54,
+    240,
+    135
+  ],
+  "audio": "Original AAC stream copied without re-encoding",
+  "audio_packets_sha256": "3ce7f75d8116617a0f8f6ba76858847548bab556e06dfe582ed81573c78464af"
+}

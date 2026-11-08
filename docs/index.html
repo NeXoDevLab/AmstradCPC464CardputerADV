@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="es">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Amstrad CPC 464 en Cardputer ADV: capturas USB reales, carga completa de Fernando Martín y Olé Toro con sonido original.">
+<title>Amstrad CPC 464 · Cardputer ADV</title>
+<style>
+  :root{color-scheme:dark;font-family:system-ui,sans-serif;background:#111419;color:#ecedf2}
+  *{box-sizing:border-box}body{margin:0}main{max-width:1872px;margin:auto;padding:40px 24px 28px}
+  header{display:flex;align-items:center;justify-content:space-between;gap:24px;flex-wrap:wrap}
+  h1{font-size:clamp(24px,3vw,36px);letter-spacing:-.03em;margin:4px 0 10px}
+  p{line-height:1.6;margin:8px 0;color:#b8c1cf}a{color:#8dbbff;text-underline-offset:3px}
+  .tag{font-size:12px;font-weight:700;letter-spacing:.08em;color:#ffe85b}
+  nav{display:flex;gap:20px;flex-wrap:wrap}h2{font-size:20px;margin:0 0 20px}
+  section{margin-top:38px}.strip{display:flex;gap:24px;overflow-x:auto;padding:0 0 16px;scrollbar-color:#697488 #20252f}
+  .screens{justify-content:safe center}.screens figure{margin:0;flex:0 0 240px}
+  .screens img{display:block;width:240px;height:135px;image-rendering:pixelated;border:1px solid #424958}
+  figcaption{margin-top:10px;font-size:14px;color:#c4ccda}
+  .tools{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:16px}
+  button{border:1px solid #68758a;background:#1b2330;color:#fff;border-radius:7px;padding:9px 13px;cursor:pointer;font:inherit;font-size:14px}
+  button[aria-pressed="true"]{border-color:#ffe85b;color:#ffe85b}
+  .clip{margin:0;flex:0 0 880px;min-width:0}.clip video{display:block;width:880px;height:580px;background:white;border-radius:12px}
+  .clip figcaption{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap}
+  .fit .clip{flex:0 0 calc((100% - 24px)/2)}.fit .clip video{width:100%;height:auto;aspect-ratio:880/580}
+  .hint{font-size:13px;margin:0 0 18px}footer{border-top:1px solid #343b47;margin-top:32px;padding-top:18px;font-size:13px}
+  details{margin-top:18px;color:#b8c1cf;line-height:1.6}summary{cursor:pointer}
+  @media(max-width:600px){main{padding:24px 16px}.strip{gap:16px}.fit .clip{flex-basis:calc((100% - 16px)/2)}.clip figcaption{font-size:12px}}
+</style>
+<main>
+  <header>
+    <div><span class="tag">FIX12 · CARDPUTER ADV</span><h1>Amstrad CPC 464</h1><p>Capturas reales y carga de cinta completa, con su sonido original.</p></div>
+    <nav><a href="https://github.com/NeXoDevLab/AmstradCPC464CardputerADV">Proyecto y guía</a><a href="https://github.com/NeXoDevLab/AmstradCPC464CardputerADV/releases/latest">Descargar firmware</a></nav>
+  </header>
+  <section id="capturas" aria-labelledby="screens-title">
+    <h2 id="screens-title">Tres pantallas del Cardputer · FIX12</h2>
+    <div class="strip screens">
+      <figure><a href="images/basic-fix12-lcd.png"><img src="images/basic-fix12-lcd.png" width="240" height="135" alt="BASIC azul y amarillo, captura USB real de FIX12"></a><figcaption>BASIC</figcaption></figure>
+      <figure><a href="images/carga-original-fix12.png"><img src="images/carga-original-fix12.png" width="240" height="135" alt="Fernando Martín durante la carga original en FIX12"></a><figcaption>Cinta original</figcaption></figure>
+      <figure><a href="images/juego-fix12.png"><img src="images/juego-fix12.png" width="240" height="135" alt="Menú de Basket Master tras terminar la carga en FIX12"></a><figcaption>Juego cargado</figcaption></figure>
+    </div>
+  </section>
+  <section id="videos" aria-labelledby="videos-title">
+    <h2 id="videos-title">Carga completa</h2>
+    <div class="tools" role="group" aria-label="Tamaño de los vídeos">
+      <button id="native" aria-pressed="true">Tamaño original · LCD 240×135</button>
+      <button id="fit" aria-pressed="false">Ajustar a la ventana</button>
+    </div>
+    <p class="hint">Los dos equipos están en una fila. Desplázala lateralmente si no caben completos.</p>
+    <div class="strip videos">
+      <figure class="clip" id="fernando">
+        <video controls playsinline preload="none" width="880" height="580" poster="media/fernando-martin-poster.png" aria-label="Carga completa de Fernando Martín">
+          <source src="media/fernando-martin-cardputer-adv.mp4" type="video/mp4">
+          <a href="media/fernando-martin-cardputer-adv.mp4">Descargar vídeo de Fernando Martín</a>
+        </video>
+        <figcaption><span>Fernando Martín · 4:51</span><a href="media/fernando-martin-cardputer-adv.mp4" download>Descargar MP4</a></figcaption>
+      </figure>
+      <figure class="clip" id="ole-toro">
+        <video controls playsinline preload="none" width="880" height="580" poster="media/ole-toro-poster.png" aria-label="Carga completa de Olé Toro">
+          <source src="media/ole-toro-cardputer-adv.mp4" type="video/mp4">
+          <a href="media/ole-toro-cardputer-adv.mp4">Descargar vídeo de Olé Toro</a>
+        </video>
+        <figcaption><span>Olé Toro · 5:57</span><a href="media/ole-toro-cardputer-adv.mp4" download>Descargar MP4</a></figcaption>
+      </figure>
+    </div>
+  </section>
+  <footer>
+    <p><strong>Para jugar:</strong> flechas impresas y espacio, sin mantener Fn. Se activa al cargar desde SD; Fn+J alterna con el teclado de BASIC.</p>
+    <details><summary>Procedencia de las capturas y vídeos</summary><p>Las tres imágenes proceden de capturas USB RGB565 de FIX12 del Cardputer conectado. Los vídeos se grabaron en FIX11, que utiliza el mismo filtro de pantalla que FIX12. Conservan toda la cinta, sus pausas y el audio del CPC. La fotografía facilitada del Cardputer ADV es solo el marco: el vídeo ocupa los 240×135 píxeles de la LCD y no es una filmación externa del aparato.</p><p><a href="images/capturas-fix12.json">Registro de las capturas</a> · <a href="https://docs.m5stack.com/en/core/Cardputer-Adv">Imagen del dispositivo: M5Stack</a> · <a href="https://github.com/NeXoDevLab/AmstradCPC464CardputerADV/blob/main/VALIDACION.md">Validación</a></p></details>
+  </footer>
+</main>
+<script>
+  const buttons=[document.getElementById('native'),document.getElementById('fit')];
+  buttons.forEach((button,index)=>button.addEventListener('click',()=>{
+    document.body.classList.toggle('fit',Boolean(index));
+    buttons.forEach((item,n)=>item.setAttribute('aria-pressed',String(n===index)));
+  }));
+  const videos=[...document.querySelectorAll('video')];
+  videos.forEach(video=>video.addEventListener('play',()=>videos.forEach(other=>{if(other!==video)other.pause();})));
+</script>
+</html>

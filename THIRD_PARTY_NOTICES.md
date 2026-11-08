@@ -63,8 +63,12 @@ Las ROMs CPC y las imágenes de juegos no forman parte de esta publicación.
 La licencia del código no concede derechos sobre ellas. Los nombres y las
 pantallas de Amstrad, Profanation 2 y Turrican pertenecen a sus respectivos
 titulares. Las capturas se incluyen para documentar el emulador y sus pruebas.
+Lo mismo se aplica a las pantallas y al audio de Pac-Man, Fernando Martín /
+Basket Master y Olé Toro en las imágenes y vídeos de demostración.
 
-Las imágenes de `docs/images/` se capturaron del dispositivo o de su framebuffer;
+Las pantallas de `docs/images/` se capturaron del dispositivo o de su framebuffer;
 su descripción y procedencia están en [la galería](docs/images/README.md).
-No se ha utilizado la fotografía del equipo original como si fuera una captura
-del Cardputer.
+`cardputer-adv-template.png` es la fotografía frontal del equipo facilitada por
+el usuario, correspondiente a la imagen de producto de [M5Stack](https://docs.m5stack.com/en/core/Cardputer-Adv).
+Se utiliza como marco de las grabaciones USB; su contenido no queda cubierto
+por la licencia del código del emulador. [Procedencia y composición de los vídeos](docs/media/README.md).

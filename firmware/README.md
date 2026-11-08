@@ -1,6 +1,6 @@
-# Firmware FIX9
+# Firmware FIX12
 
-`AmstradCPC464-CardputerADV-FIX9-app.bin` es el binario de aplicación que se
+`AmstradCPC464-CardputerADV-FIX12-app.bin` es el binario de aplicación que se
 instaló y verificó en el Cardputer ADV durante las pruebas. No contiene las ROMs
 del CPC ni juegos: deben estar en la microSD.
 
@@ -18,9 +18,19 @@ Para una primera instalación utiliza Arduino IDE/CLI como explica
 [la guía](../docs/GUIA.md#3-instalar-con-arduino-ide). Para una actualización
 compatible utiliza [las instrucciones del BIN](../docs/GUIA.md#5-actualizar-con-el-bin).
 
-FIX9 arranca al 30% y ajusta el volumen con Fn+= y Fn+- en pasos del 5%,
-también en el selector. Sin Fn, los signos se escriben en el CPC.
+FIX12 activa las flechas impresas y espacio para jugar sin mantener Fn tras
+cargar desde SD. Fn+J alterna con el teclado de BASIC.
+
+Conserva el filtro de FIX11 para la lectura de los textos, los trazos finos
+y la imagen completa, con salida RGB565. Mantiene el arranque
+DSK de ejecutables sin extensión o con extensiones no habituales mediante su
+cabecera AMSDOS. Arriba/abajo mueve una entrada
+e izquierda/derecha cambia de página de seis entradas. También se corrige
+el envío del disparo del joystick, ahora también con espacio sin Fn.
+
+Arranca al 30% y ajusta el volumen con Fn+= y Fn+- en pasos del 5%,
+también en el selector. Sin Fn, los signos +, - y = se escriben en el CPC.
 Conserva las carpetas CDT/DSK de FIX7, el vídeo y texto de FIX6 y la corrección
-de memoria de FIX5. Esta carpeta contiene únicamente el BIN actual;
+de memoria de FIX5. Para instalar, utiliza el BIN actual;
 las versiones publicadas anteriores siguen disponibles en
 [Releases](https://github.com/NeXoDevLab/AmstradCPC464CardputerADV/releases).

@@ -1,6 +1,6 @@
 # Guía completa · Amstrad CPC 464 en Cardputer ADV
 
-Esta guía corresponde a **FIX9**, con carga desde microSD, modos de cinta
+Esta guía corresponde a **FIX12**, con carga desde microSD, modos de cinta
 original y rápido, audio AY y volumen inicial del 30%.
 
 ## 1. Qué necesitas
@@ -84,7 +84,7 @@ soltarlo cuando el dispositivo se encienda.
 
 ## 4. Compilar con Arduino CLI
 
-Configuración usada para FIX9:
+Configuración usada para FIX12:
 
 | Componente | Versión probada |
 | --- | --- |
@@ -136,12 +136,12 @@ placas conectadas.
 
 ## 5. Actualizar con el BIN
 
-Usa `firmware/AmstradCPC464-CardputerADV-FIX9-app.bin`, que contiene **solo la
+Usa `firmware/AmstradCPC464-CardputerADV-FIX12-app.bin`, que contiene **solo la
 aplicación**, sin ROMs ni juegos.
 
 ### Con M5Launcher
 
-1. Copia el BIN de aplicación FIX9 a la microSD.
+1. Copia el BIN de aplicación FIX12 a la microSD.
 2. Entra en el explorador de SD de Launcher, selecciona ese BIN e instálalo.
 3. Abre el emulador desde Launcher. Las ROMs siguen en `/CPC464/`.
 
@@ -161,7 +161,7 @@ Con esptool 5 instalado y el puerto identificado:
 ```sh
 python3 -m esptool --chip esp32s3 --port PUERTO --baud 460800 \
   write-flash --flash-mode keep --flash-freq keep --flash-size keep \
-  0x10000 firmware/AmstradCPC464-CardputerADV-FIX9-app.bin
+  0x10000 firmware/AmstradCPC464-CardputerADV-FIX12-app.bin
 ```
 
 Este comando actualiza la aplicación y reinicia el dispositivo. No modifica los
@@ -174,8 +174,8 @@ La suma SHA-256 del BIN publicado está en `firmware/SHA256SUMS`.
 | --- | --- |
 | Tab | Abrir selector de juegos |
 | Botón A / G0, si está disponible | Acceso alternativo al selector |
-| Coma / punto | Anterior / siguiente en el selector |
-| Arriba / abajo | Navegar en el selector |
+| Arriba / abajo; también `;` / `.` | Entrada anterior / siguiente en el selector |
+| Izquierda / derecha; también `,` / `/` | Página anterior / siguiente, seis entradas |
 | Enter | Entrar en una carpeta o cargar el juego seleccionado |
 | Retroceso / `[ .. ] Volver` | Volver a la carpeta anterior |
 | Tecla de acento grave | Salir del selector |
@@ -186,20 +186,32 @@ La suma SHA-256 del BIN publicado está en `firmware/SHA256SUMS`.
 | Fn+B | Mostrar / ocultar el borde fuera de la carga |
 | Fn+= / Fn+- | Subir / bajar volumen un 5%, con porcentaje en pantalla |
 | + / - / = sin Fn | Escribir los signos dentro del CPC |
-| Fn + flechas impresas | Cursores CPC y joystick 0 |
-| Fn+espacio | Disparo del joystick 0 |
+| Flechas impresas `;` / `.` / `,` / `/`, sin Fn | Arriba / abajo / izquierda / derecha en juegos; cursores CPC y joystick 0 |
+| Espacio, sin Fn | Disparo del joystick 0 y espacio del teclado CPC |
+| Fn+J | Alternar controles de juego y teclado de BASIC |
 
 Las letras, números, símbolos, Enter, retroceso, Escape, Shift, Ctrl y las teclas
 de función disponibles se traducen a la matriz CPC. La tecla A escribe A;
 no abre el selector. Los controles dentro de cada juego dependen del propio
 juego: puede ser necesario escoger teclado o joystick en su menú.
 
+Desde FIX12, cargar un CDT, DSK o SNA activa automáticamente los controles de
+juego. Usa las cuatro teclas con las flechas impresas, sin mantener Fn, y espacio
+para disparar. Selecciona joystick en el menú del juego si lo requiere. Fn+J
+alterna este modo con el teclado de BASIC; aparece brevemente «Juego: ON/OFF».
+En el arranque de BASIC se pueden escribir los signos normalmente. Los
+atajos antiguos con Fn siguen funcionando y el volumen conserva Fn+= y Fn+-.
+
 ## 7. Cargar DSK
 
 1. Copia el DSK en `/CPC464/GAMES/DSK/` y comprueba que exista `AMSDOS.ROM`.
 2. Abre el selector con Tab, entra en DSK con Enter, elige el disco y pulsa Enter.
 3. El emulador monta la imagen, reinicia el CPC y escribe `|DISC`.
-4. Busca un cargador BAS/BIN en el directorio del disco. Da prioridad a nombres
+4. Busca un cargador en el directorio del disco. Conserva la prioridad de
+   BAS/BIN y reconoce otros nombres mediante una cabecera AMSDOS válida:
+   BASIC o binario con dirección de ejecución. Admite archivos sin extensión,
+   como `PAC-MAN`, y conserva la extensión exacta de otros archivos.
+   Da prioridad a nombres
    como `DISC`, `DISK`, `LOADER` o `MENU` y escribe el comando RUN correspondiente.
 5. Si no encuentra un cargador reconocido, escribe `CAT` para mostrar el
    directorio. No significa que todos los discos puedan arrancarse automáticamente.
@@ -215,6 +227,10 @@ RUN"DISC
 `DISC` es un ejemplo: usa el nombre del programa que aparezca en tu disco.
 No basta con montar una imagen para que cualquier juego arranque. Los discos
 están protegidos contra escritura; guardar partidas en el DSK no está implementado.
+
+En la edición probada de Pac-Man, pulsa **P** para seleccionar un jugador y
+después **espacio** para enviar FIRE e iniciar la partida en FIX12. FIX10 corrigió
+la lectura de ese atajo del teclado.
 
 ![Profanation 2 desde DSK](images/profanation-partida.png)
 
@@ -249,7 +265,12 @@ la LCD, conservando sus cuatro extremos. Por ejemplo, los juegos que usan
 El BASIC conserva su imagen completa. Durante la cinta se compone una vista
 de 384×240 que incluye el borde. Fuera
 de la carga, Fn+B permite mostrarlo para ver los cambios de `BORDER` desde BASIC.
-El BASIC arranca con azul marino y amarillo.
+El BASIC arranca con azul marino y amarillo. FIX11 utiliza un filtro de
+cobertura con corrección de brillo para conservar los trazos finos que
+antes se perdían al reducir de 320×200 a 240×135. Los bordes de las letras
+quedan más suaves; se mantienen los colores planos y la imagen completa.
+La pantalla física sigue siendo de 240×135: el filtro mejora la lectura
+sin aumentar ni recortar los caracteres.
 
 La lista muestra seis juegos con letras de 10 píxeles. El título amarillo del
 arranque tiene 19 píxeles; el título del selector conserva su tamaño anterior.
@@ -280,7 +301,9 @@ python3 tests/device_probe.py PUERTO '?'
 python3 tests/device_probe.py PUERTO v carga.ppm
 ```
 
-`v` obtiene la composición de 240×135, incluido el borde cuando esté activo.
+`v` obtiene la composición filtrada de 240×135, incluido el borde cuando esté
+activo. Desde FIX11 utiliza RGB565; el script reconoce también las capturas
+indexadas de versiones anteriores.
 `s` obtiene el framebuffer CPC central de 320×200:
 
 ```sh
@@ -298,7 +321,8 @@ capturas digitales, no fotografías. Capturar interrumpe brevemente la emulació
 mientras transmite los píxeles; no lo hagas si estás midiendo continuidad de audio.
 Las capturas `v` y `s` requieren salir del selector. Dentro del selector,
 `?` informa de la carpeta y selección, y `l` lista su contenido. Los comandos
-USB `j`/`k`, `e`, `b` y `q` permiten probar movimiento, entrada, vuelta y salida.
+USB `j`/`k` mueven una fila, `[`/`]` cambian de página y `e`, `b` y `q`
+permiten probar entrada, vuelta y salida.
 
 Otros comandos técnicos: `+`/`-` cambian el volumen; `m` abre el selector; `l` lista la carpeta actual;
 `d` / `t` buscan un DSK/CDT de prueba en la raíz y en `DSK/` o `CDT/`
@@ -311,13 +335,50 @@ El comando USB `o`, fuera del selector y antes de montar un juego, crea
 sobrescribe archivos existentes: en una colisión deja el original en la raíz
 y la informa como omitida. El resultado indica archivos movidos y fallos.
 
+### Grabación digital de vídeo y sonido
+
+El modo opcional de compilación `CPC_USB_RECORDING` permite grabar desde el
+arranque del CPC en BASIC hasta la carga de una cinta. No está activado en el
+BIN normal. Se compila con la propiedad adicional
+`compiler.cpp.extra_flags=-DCPC_USB_RECORDING` y una carpeta de compilación
+distinta para conservar el BIN normal.
+
+`scripts/record-device.py` recibe fotogramas comprimidos y PCM mono de 16 kHz
+del dispositivo y genera un MP4 con FFmpeg. El protocolo CPCREC2 de FIX11
+conserva los colores RGB565 del filtro; el receptor también acepta CPCREC1.
+La imagen es la composición de 240×135 del emulador, ampliada sin suavizado
+a 1920×1080. No es una filmación del aparato ni incluye los menús de
+M5Launcher o el selector. La grabación
+comienza reiniciando el CPC, monta el CDT y utiliza la carga original con sonido.
+
+```sh
+python3 scripts/record-device.py PUERTO \
+  /CPC464/GAMES/CDT/Fernando_Martin_Basket_Master.cdt \
+  Fernando-Martin-carga-completa.mp4 --seconds 900 \
+  --stop-file /tmp/cpc-detener-grabacion
+```
+
+Necesita FFmpeg en PATH o el paquete Python `imageio-ffmpeg`. El archivo de
+salida debe ser nuevo. Para terminar antes del límite indicado, crea el archivo
+especificado en `--stop-file`; el script finaliza y sincroniza el MP4.
+La opción `--continue-file RUTA` envía una vez la tecla 3 cuando se crea ese
+archivo. Permite salir de una presentación que pide cualquier tecla y grabar
+la transición real al menú, sin detener la captura. Úsala después de terminar
+la carga y con el firmware de grabación actualizado.
+Mientras graba, deja avanzar la carga sin pulsar teclas. El envío USB puede
+ralentizar el dispositivo y entrecortar su altavoz: el vídeo conserva el tiempo
+del reloj CPC y todas las muestras PCM, sin incorporar esa espera de
+transferencia. No se debe medir la continuidad del altavoz durante la captura.
+Al terminar,
+puedes reinstalar el BIN normal con el procedimiento de la sección 5.
+
 ## 11. Solución de problemas
 
 | Síntoma | Qué comprobar |
 | --- | --- |
 | No aparece un puerto USB | Cable de datos, puerto correcto y modo G0 de descarga |
 | SD no disponible | Tarjeta FAT32, inserción correcta y lectura desde el ordenador |
-| FIX4 queda en «Leyendo ROMs de SD» o muestra «Sin memoria CPC» | Instalar FIX9: incluye la reserva fija de los 64 KiB del CPC introducida en FIX5 |
+| FIX4 queda en «Leyendo ROMs de SD» o muestra «Sin memoria CPC» | Instalar FIX12: incluye la reserva fija de los 64 KiB del CPC introducida en FIX5 |
 | Faltan ROMs | Rutas exactas y tamaño de 16384 bytes de OS/BASIC |
 | Falta AMSDOS | Copiar `AMSDOS.ROM`; no renombrar una ROM de MS-DOS |
 | Lista vacía | Carpeta actual, extensiones DSK/CDT/SNA y máximo 64 entradas por carpeta; `[ .. ] Volver` permite salir de una carpeta vacía |
@@ -331,7 +392,7 @@ y la informa como omitida. El resultado indica archivos movidos y fallos.
 | SNA inválido | Solo se contemplan instantáneas clásicas de 64 KiB; no 128 KiB ni chunks comprimidos |
 | Reinicios al habilitar PSRAM | Usar el perfil probado con PSRAM desactivada |
 
-Al informar de un fallo indica FIX9, formato y mensaje, si estaba activo O/R,
+Al informar de un fallo indica FIX12, formato y mensaje, si estaba activo O/R,
 y los datos de diagnóstico. Una captura ayuda a distinguir el cargador, BASIC
 y el menú del emulador.
 

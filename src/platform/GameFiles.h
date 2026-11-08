@@ -6,6 +6,8 @@
 namespace cpc_files {
 constexpr const char *kRoot = "/CPC464/GAMES";
 constexpr std::size_t kCapacity = 64;
+constexpr std::size_t kPageRows = 6;
+std::size_t navigate(std::size_t selected,std::size_t count,int rows,int pages);
 enum class Kind { none, cdt, dsk, sna };
 struct Entry { std::string name; bool directory=false; };
 struct Listing {

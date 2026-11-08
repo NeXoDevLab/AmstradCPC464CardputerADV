@@ -27,6 +27,20 @@ bool ensureDirectory(Storage &storage,const std::string &path) {
 }
 }
 
+std::size_t navigate(std::size_t selected,std::size_t count,int rows,int pages) {
+  if(!count) return 0;
+  selected=std::min(selected,count-1);
+  if(pages) {
+    const auto page=selected/kPageRows,last=(count-1)/kPageRows;
+    if((pages<0 && !page) || (pages>0 && page==last)) return selected;
+    const auto next=pages>0 ? page+1 : page-1;
+    return std::min(next*kPageRows+selected%kPageRows,count-1);
+  }
+  if(rows<0) return (selected+count-1)%count;
+  if(rows>0) return (selected+1)%count;
+  return selected;
+}
+
 std::string baseName(const std::string &path) {
   const auto at=path.find_last_of('/');
   return at==std::string::npos ? path : path.substr(at+1);

@@ -1,5 +1,6 @@
 #include "CardputerPlatform.h"
 #include "GameFiles.h"
+#include "UsbRecording.h"
 
 #include <M5Cardputer.h>
 #include <SD.h>
@@ -20,6 +21,7 @@
 #include "../core/Keyboard.h"
 #include "../core/Audio.h"
 #include "../core/Video.h"
+#include "../core/DisplayScaler.h"
 
 namespace {
 constexpr int kSdSck = 40;
@@ -30,7 +32,7 @@ constexpr uint16_t kScreenWidth = 240;
 constexpr uint16_t kScreenHeight = 135;
 constexpr uint16_t kImageWidth = 240;
 constexpr uint16_t kImageHeight = 135;
-constexpr uint8_t kGameListRows = 6;
+constexpr uint8_t kGameListRows = cpc_files::kPageRows;
 constexpr uint8_t kGameListTop = 34;
 constexpr uint8_t kGameListRowHeight = 12;
 constexpr uint16_t kGameListWidth = kScreenWidth - 16;
@@ -66,18 +68,29 @@ unsigned gAutoDelay=0;
 bool gTabWasDown=false;
 bool gFast=false,gTapeSound=true,gFastKey=false;
 bool gOriginalLoad=true,gForceBorder=false,gBorderKey=false;
+bool gGameControls=false,gControlsKey=false;
+uint32_t gControlsUntil=0;
 unsigned gFrameCount=0;
 uint8_t gVolume=cpcDefaultVolume; // 30% on the speaker's 0..255 scale
 uint32_t gVolumeAt=0,gVolumeUntil=0;
 int gVolumeDirection=0;
-// One immutable 8-bit snapshot costs 32 KiB. Skip refreshing while SPI is busy.
-uint8_t gLcdFrame[kImageHeight][kImageWidth];
+// Preserve the complete source at 5 bits/pixel. Filtering runs on the LCD
+// task, so its work does not interrupt the producer of CPC audio.
+std::unique_ptr<uint8_t[]> gLcdPicture;
+uint8_t gLcdBorder[312];
+CpcViewport gLcdView{0,0,320,200};
+bool gLcdShowBorder=false;
+cpc_display::Workspace gLcdScaling;
 std::atomic<bool> gLcdBusy{false};
 std::atomic<uint32_t> gLcdFrames{0};
+std::atomic<uint32_t> gLcdFilterUs{0},gLcdPushUs{0},gLcdPackUs{0};
+uint32_t gLcdPublishedAt=0;
 TaskHandle_t gLcdTask=nullptr;
 SemaphoreHandle_t gLcdMutex=nullptr;
 uint8_t gLcdVolume=0;
 uint32_t gLcdVolumeUntil=0;
+bool gLcdGameControls=false;
+uint32_t gLcdControlsUntil=0;
 uint32_t gAudioLastUs=0,gAudioMaxGapUs=0,gAudioLate=0,gAudioPackets=0;
 struct DisplayLock {
   DisplayLock() {if(gLcdMutex) xSemaphoreTake(gLcdMutex,portMAX_DELAY);}
@@ -85,6 +98,7 @@ struct DisplayLock {
 };
 
 void queueCommand(const String &text) {gAutoKeys=text;gAutoFrame=0;gAutoDelay=150;}
+void setGameControls(bool enabled) {gGameControls=enabled;gControlsUntil=millis()+1800;}
 bool showCpcBorder() {
   return gForceBorder || cpcTapeBorderVisible(gOriginalLoad,gFast,tape::loaded(),tape::active(),
                                             tape::position(),tape::fileSize());
@@ -93,22 +107,30 @@ uint8_t gOsRom[16384];
 uint8_t gBasicRom[16384];
 uint8_t gAmsdosRom[16384];
 
-uint16_t cpcColour(uint8_t c) {
-  const uint8_t r = cpcColourComponent(c,0);
-  const uint8_t g = cpcColourComponent(c,2);
-  const uint8_t b = cpcColourComponent(c,4);
-  return M5.Display.color565(r, g, b);
-}
-
 void drawLcdSnapshot() {
   DisplayLock lock;
+  auto scaler=cpc_display::scaler([](unsigned x,unsigned y) {return cpc_display::unpack(gLcdPicture.get(),x,y);},
+                                 gLcdBorder,gLcdShowBorder,gLcdView,gLcdScaling,
+                                 [](unsigned a,unsigned b) {return !memcmp(gLcdPicture.get()+a*200,gLcdPicture.get()+b*200,200);});
   M5.Display.startWrite();
+  uint32_t filterUs=0,pushUs=0;
   for(unsigned y=0;y<kImageHeight;++y) {
     uint16_t line[kImageWidth];
-    for(unsigned x=0;x<kImageWidth;++x) line[x]=cpcColour(gLcdFrame[y][x]);
+    uint32_t at=micros();
+    scaler.render(y,line);
+    filterUs+=micros()-at;at=micros();
     M5.Display.pushImage(0,y,kImageWidth,1,line);
+    pushUs+=micros()-at;
   }
   M5.Display.endWrite();
+  gLcdFilterUs=filterUs;gLcdPushUs=pushUs;
+  if(millis()<gLcdControlsUntil) {
+    M5.Display.fillRect(0,122,150,13,TFT_BLACK);
+    M5.Display.setTextColor(TFT_WHITE,TFT_BLACK);
+    M5.Display.setTextSize(kLoadTextScale);
+    M5.Display.drawString(gLcdGameControls?"Juego: ON":"Juego: OFF",3,124,1);
+    M5.Display.setTextSize(1);
+  }
   if(millis()<gLcdVolumeUntil) {
     M5.Display.fillRect(153,122,87,13,TFT_BLACK);
     M5.Display.setTextColor(TFT_WHITE,TFT_BLACK);
@@ -224,6 +246,18 @@ bool updateVolume(const VolumeInput &input) {
   return changeVolume(input.direction);
 }
 
+#ifdef CPC_USB_RECORDING
+bool prepareRecording(const char *path) {
+  if(!isCdtName(path) || !tape::mountCdt(path)) return false;
+  gFast=false;gOriginalLoad=true;gForceBorder=false;gTapeSound=true;
+  cpc_audio::setTapeSound(true);cpc_audio::setEnabled(true);
+  M5.Speaker.stop();gAudioLastUs=0;
+  resetz80();resetcrtc();queueCommand("|tape\nrun\"\n ");
+  setGameControls(true);
+  return true;
+}
+#endif
+
 bool loadSna(const String &path) {
   File file = SD.open(path, FILE_READ);
   if (!file || file.size() < 0x10100) return false;
@@ -271,6 +305,9 @@ bool loadSna(const String &path) {
 namespace cpc_platform {
 void begin() {
   gReady = false;
+  // Allocate once before device drivers fragment the heap. CPC RAM remains
+  // statically reserved; the complete video snapshot never grows at runtime.
+  if(!gLcdPicture) gLcdPicture.reset(new(std::nothrow) uint8_t[cpc_display::kPackedSize]);
   auto config = M5.config();
   config.clear_display = true;
   M5Cardputer.begin(config, true);
@@ -293,6 +330,7 @@ void begin() {
   M5.Display.setTextSize(kBootTitleTextScale);
   M5.Display.drawString("Amstrad CPC 464", 12, 10, 2);
   M5.Display.setTextSize(1);
+  if(!gLcdPicture) {bootStatus("Sin memoria para video",nullptr,true);return;}
   bootStatus("Montando tarjeta SD...");
   Serial.printf("CPC BOOT SPI.begin heap=%u max=%u\n",ESP.getFreeHeap(),ESP.getMaxAllocHeap());
   SPI.begin(kSdSck, kSdMiso, kSdMosi, kSdCs);
@@ -339,10 +377,14 @@ bool ready() { return gReady; }
 void pollKeyboard() {
   ++gFrameCount;
   M5Cardputer.update();
+#ifdef CPC_USB_RECORDING
+  cpc_recording::pollSerial(prepareRecording);
+  if(cpc_recording::takeContinueKey()) {gAutoKeys="3";gAutoDelay=0;gAutoFrame=0;}
+#endif
   while(Serial.available()) {
     char ch=Serial.read();
-    if(ch=='?') Serial.printf("CPC-ADV FIX9 pc=%04x mode=%u heap=%u psram=%u tape=%u frames=%u ms=%u tape_bytes=%u/%u fast=%u audio_packets=%u late=%u max_gap_us=%u lcd=%u volume=%u ay=%u,%u,%u error=%s\n",
-      pc,scrmode,ESP.getFreeHeap(),ESP.getPsramSize(),tape::active(),gFrameCount,millis(),tape::position(),tape::fileSize(),gFast,gAudioPackets,gAudioLate,gAudioMaxGapUs,gLcdFrames.load(),unsigned(M5.Speaker.getVolume())*100/255,psgregs[8],psgregs[9],psgregs[10],tape::mountError());
+    if(ch=='?') Serial.printf("CPC-ADV FIX12 pc=%04x mode=%u heap=%u psram=%u tape=%u frames=%u ms=%u tape_bytes=%u/%u fast=%u audio_packets=%u late=%u max_gap_us=%u lcd=%u volume=%u filter_us=%u spi_us=%u pack_us=%u cpu_mhz=%u controls=%u ay=%u,%u,%u error=%s\n",
+      pc,scrmode,ESP.getFreeHeap(),ESP.getPsramSize(),tape::active(),gFrameCount,millis(),tape::position(),tape::fileSize(),gFast,gAudioPackets,gAudioLate,gAudioMaxGapUs,gLcdFrames.load(),unsigned(M5.Speaker.getVolume())*100/255,gLcdFilterUs.load(),gLcdPushUs.load(),gLcdPackUs.load(),getCpuFrequencyMhz(),gGameControls,psgregs[8],psgregs[9],psgregs[10],tape::mountError());
     if(!gReady) continue;
     if(ch=='+' || ch=='-') changeVolume(ch=='+'?1:-1);
     if(ch=='m') gGameMenuRequested=true;
@@ -360,10 +402,17 @@ void pollKeyboard() {
       Serial.flush();
     }
     if(ch=='v') {
-      Serial.print("CPCFRAME 240 135\n");
+      Serial.print("CPCFRAME565 240 135\n");
       const bool border=showCpcBorder();
       const auto active=cpcActiveViewport(crtcregs[1],crtcregs[6],unsigned(crtcregs[9])+1);
-      for(unsigned y=0;y<135;++y) for(unsigned x=0;x<240;++x) Serial.write(cpcDisplayPixel(gb_buffer_vga,cpcBorderLines,x,y,border,active));
+      DisplayLock lock;
+      auto scaler=cpc_display::scaler([](unsigned x,unsigned y) {return gb_buffer_vga[y][x];},cpcBorderLines,border,active,gLcdScaling,
+                                     [](unsigned a,unsigned b) {return !memcmp(gb_buffer_vga[a],gb_buffer_vga[b],320);});
+      for(unsigned y=0;y<135;++y) {
+        uint16_t line[240];
+        scaler.render(y,line);
+        Serial.write(reinterpret_cast<const uint8_t *>(line),sizeof(line));
+      }
       Serial.flush();
     }
     if(ch=='l') {
@@ -374,7 +423,7 @@ void pollKeyboard() {
       const String selected=cpc_files::findMedia(gGameStorage,ch=='d'?cpc_files::Kind::dsk:cpc_files::Kind::cdt).c_str();
       bool ok=selected.length() && (ch=='d'?mountDsk(selected.c_str()):tape::mountCdt(selected.c_str()));
       Serial.printf("MEDIA %s %s\n",selected.c_str(),ok?"OK":ch=='d'?dskMountError():tape::mountError());
-      if(ok) {if(ch=='d') tape::eject();resetz80();resetcrtc();queueCommand(ch=='d'?String("|disc\n")+dskBootCommand():String("|tape\nrun\"\n "));}
+      if(ok) {if(ch=='d') tape::eject();resetz80();resetcrtc();queueCommand(ch=='d'?String("|disc\n")+dskBootCommand():String("|tape\nrun\"\n "));setGameControls(true);}
     }
     if(ch=='3') {gAutoKeys="3";gAutoDelay=0;gAutoFrame=0;}
   }
@@ -387,6 +436,9 @@ void pollKeyboard() {
   bool borderKey=keys.fn && M5Cardputer.Keyboard.isKeyPressed('b');
   if(borderKey && !gBorderKey) gForceBorder=!gForceBorder;
   gBorderKey=borderKey;
+  const bool controlsKey=keys.fn && M5Cardputer.Keyboard.isKeyPressed('j');
+  if(controlsKey && !gControlsKey) setGameControls(!gGameControls);
+  gControlsKey=controlsKey;
   if(M5.BtnA.wasPressed() || (keys.tab && !gTabWasDown)) gGameMenuRequested=true;
   gTabWasDown=keys.tab;
   memset(cpckeys,1,sizeof(cpckeys));
@@ -402,30 +454,29 @@ void pollKeyboard() {
   }
   for(char ch:keys.word) {
     if(cpcVolumeKey(ch,keys.fn)) continue;
+    if(keys.fn && (ch=='j' || ch=='J')) continue;
+    if(cpcGameArrow(ch,gGameControls,keys.fn)) continue;
     uint8_t row,bit;bool shift;
-    // Fn + the printed arrow keys controls both CPC cursors and joystick 0.
-    if(keys.fn && (ch==';' || ch==',' || ch=='.' || ch=='/')) {
-      unsigned direction=ch==';'?0:ch==','?2:ch=='.'?1:3;
-      setKey(direction==1?1:0,direction==1?0:direction,true);
-      setKey(9,ch==';'?0:ch==','?1:ch=='.'?2:3,true);
-    } else if(cpcAsciiKey(ch,row,bit,shift)) {
+    if(cpcAsciiKey(ch,row,bit,shift)) {
       setKey(row,bit,true);if(shift) setKey(2,5,true);
     }
   }
   if(keys.enter) setKey(2,2,true);
   if(keys.del || keys.backspace) setKey(9,7,true);
   if(keys.esc) setKey(8,2,true);
-  if(keys.up) {setKey(0,0,true);setKey(9,0,true);}
-  if(keys.down) {setKey(0,2,true);setKey(9,1,true);}
-  if(keys.left) {setKey(1,0,true);setKey(9,2,true);}
-  if(keys.right) {setKey(0,1,true);setKey(9,3,true);}
+  auto gameInput=cpcGameInput(gGameControls,keys.fn,
+      M5Cardputer.Keyboard.isKeyPressed(';'),M5Cardputer.Keyboard.isKeyPressed('.'),
+      M5Cardputer.Keyboard.isKeyPressed(','),M5Cardputer.Keyboard.isKeyPressed('/'),
+      M5Cardputer.Keyboard.isKeyPressed(' '));
+  gameInput.up|=keys.up;gameInput.down|=keys.down;
+  gameInput.left|=keys.left;gameInput.right|=keys.right;
+  cpcApplyGameInput(gameInput,[](uint8_t row,uint8_t bit) {setKey(row,bit,true);});
   if(keys.shift && !volume.only) setKey(2,5,true);
   if(keys.ctrl && !volume.only) setKey(2,7,true);
   const bool functionKeys[9]={keys.f1,keys.f2,keys.f3,keys.f4,keys.f5,keys.f6,keys.f7,keys.f8,keys.f9};
   const uint8_t functionRows[9]={1,1,0,2,1,0,1,1,0};
   const uint8_t functionBits[9]={5,6,5,4,4,4,2,3,3};
   for(unsigned i=0;i<9;++i) if(functionKeys[i]) setKey(functionRows[i],functionBits[i],true);
-  if(keys.fn && keys.space) setKey(9,4,true);
 }
 
 bool openGameMenu() {
@@ -458,6 +509,7 @@ bool openGameMenu() {
   };
   bool previous = false;
   bool next = false;
+  bool previousPage=false,nextPage=false;
   bool enter = false;
   bool back = false;
   bool redraw = true;
@@ -471,7 +523,7 @@ bool openGameMenu() {
       M5.Display.fillScreen(TFT_BLACK);
       M5.Display.setTextColor(TFT_YELLOW);
       M5.Display.setTextSize(1);
-      const String title=hasParent?String("Juegos - ")+cpc_files::baseName(gGameFolder).c_str():String("Juegos CPC - FIX9");
+      const String title=hasParent?String("Juegos - ")+cpc_files::baseName(gGameFolder).c_str():String("Juegos CPC - FIX12");
       M5.Display.drawString(gameListLabel(title,&fonts::Font2), 8, 4, 2);
       M5.Display.setTextSize(kLoadTextScale);
       M5.Display.drawString(gOriginalLoad?"O:original ON  R:rapida":"O:original  R:rapida ON",8,22,1);
@@ -479,7 +531,7 @@ bool openGameMenu() {
       if (count) {
         // Original 8-pixel font, enlarged by just 2 pixels; keep six rows.
         M5.Display.setTextSize(kGameListTextScale);
-        const std::size_t first = selected >= kGameListRows ? selected - kGameListRows + 1 : 0;
+        const std::size_t first = selected / kGameListRows * kGameListRows;
         for (auto i = first; i < count && i < first + kGameListRows; ++i) {
           String label;
           if(hasParent && !i) label="[ .. ] Volver";
@@ -508,13 +560,14 @@ bool openGameMenu() {
         M5.Display.setTextColor(TFT_RED,TFT_BLACK);
         M5.Display.drawString(folderError,8,108,1);
       }
-      M5.Display.drawString(", . mover Enter abrir ` salir", 3, 122, 1);
+      M5.Display.drawString("Arr/Ab:1 Iz/De:pag Enter `", 3, 122, 1);
       M5.Display.setTextSize(1);
       redraw = false;
     }
 
     const auto &state = M5Cardputer.Keyboard.keysState();
     bool nowPrevious = state.up, nowNext = state.down;
+    bool nowPreviousPage=state.left,nowNextPage=state.right;
     bool nowEnter=state.enter,nowBack=state.backspace || state.del;
     bool nowSound=false;
     while(Serial.available()) {
@@ -524,6 +577,8 @@ bool openGameMenu() {
       if(command=='?') Serial.printf("MENU %s selected=%u entries=%u volume=%u\n",gGameFolder.c_str(),unsigned(selected),unsigned(count),unsigned(gVolume)*100/255);
       if(command=='j') nowNext=true;
       if(command=='k') nowPrevious=true;
+      if(command=='[') nowPreviousPage=true;
+      if(command==']') nowNextPage=true;
       if(command=='e') nowEnter=true;
       if(command=='b') nowBack=true;
       if(command=='q') return true;
@@ -532,20 +587,27 @@ bool openGameMenu() {
       nowSound |= key=='s' || key=='S';
       if(key=='o' || key=='O') {gOriginalLoad=true;gFast=false;gTapeSound=true;cpc_audio::setTapeSound(true);redraw=true;}
       if(key=='r' || key=='R') {gOriginalLoad=false;gFast=true;redraw=true;}
-      nowPrevious |= key == ';' || key == ':' || key == ',' || key == '<';
-      nowNext |= key == '.' || key == '>' || key == '/';
+      nowPrevious |= key == ';' || key == ':';
+      nowNext |= key == '.' || key == '>';
+      nowPreviousPage |= key == ',' || key == '<';
+      nowNextPage |= key == '/' || key == '?';
       if (key == '`' || key == '~') return true;
     }
     if(nowSound && !soundKey) {gTapeSound=!gTapeSound;cpc_audio::setTapeSound(gTapeSound);redraw=true;}
     soundKey=nowSound;
-    if(nowBack && !back && hasParent) {
+    const bool pressedBack=nowBack && !back,pressedEnter=nowEnter && !enter;
+    const int rows=int(nowNext && !next)-int(nowPrevious && !previous);
+    const int pages=int(nowNextPage && !nextPage)-int(nowPreviousPage && !previousPage);
+    previous=nowPrevious;next=nowNext;previousPage=nowPreviousPage;nextPage=nowNextPage;
+    back=nowBack;enter=nowEnter;
+    if(pressedBack && hasParent) {
       changeFolder(cpc_files::parent(gGameFolder));
-      redraw=true;back=true;enter=nowEnter;previous=nowPrevious;next=nowNext;
+      redraw=true;
       continue;
     }
-    if (count && nowPrevious && !previous) { selected = (selected + count - 1) % count; redraw = true; }
-    if (count && nowNext && !next) { selected = (selected + 1) % count; redraw = true; }
-    if (count && nowEnter && !enter) {
+    const auto moved=cpc_files::navigate(selected,count,rows,pages);
+    if(moved!=selected) {selected=moved;redraw=true;}
+    if (count && pressedEnter) {
       if(hasParent && !selected) {
         changeFolder(cpc_files::parent(gGameFolder));redraw=true;enter=true;continue;
       }
@@ -589,12 +651,9 @@ bool openGameMenu() {
         if(isDskName(selectedFile)) queueCommand(String("|disc\n") + dskBootCommand());
         else queueCommand("|tape\nrun\"\n ");
       }
+      setGameControls(true);
       return false;
     }
-    previous = nowPrevious;
-    next = nowNext;
-    enter = nowEnter;
-    back = nowBack;
     delay(20);
   }
 }
@@ -603,9 +662,13 @@ void present() {
   if(gLcdBusy.load(std::memory_order_acquire)) return;
   const bool border=showCpcBorder();
   const auto active=cpcActiveViewport(crtcregs[1],crtcregs[6],unsigned(crtcregs[9])+1);
-  for(unsigned y=0;y<kImageHeight;++y) for(unsigned x=0;x<kImageWidth;++x)
-    gLcdFrame[y][x]=cpcDisplayPixel(gb_buffer_vga,cpcBorderLines,x,y,border,active);
+  gLcdPublishedAt=micros();
+  cpc_display::pack(gb_buffer_vga,gLcdPicture.get());
+  gLcdPackUs=micros()-gLcdPublishedAt;
+  memcpy(gLcdBorder,cpcBorderLines,sizeof(gLcdBorder));
+  gLcdView=active;gLcdShowBorder=border;
   gLcdVolume=gVolume;gLcdVolumeUntil=gVolumeUntil;
+  gLcdGameControls=gGameControls;gLcdControlsUntil=gControlsUntil;
   if(gLcdTask) {
     gLcdBusy.store(true,std::memory_order_release);
     xTaskNotifyGive(gLcdTask);
@@ -613,14 +676,21 @@ void present() {
 }
 
 bool shouldRender() {
-  static uint32_t last=0;
   cpc_audio::setEnabled(!gFast);
-  uint32_t now=millis();
-  if(gLcdBusy.load(std::memory_order_acquire) || now-last<(gFast?250u:40u)) return false;
-  last=now;return true;
+#ifdef CPC_USB_RECORDING
+  if(cpc_recording::active()) return cpc_recording::videoFrame();
+#endif
+  // Rendering uses the live CPC buffer while the LCD reads its immutable
+  // snapshot. Prepare the next frame in parallel; present() alone checks
+  // whether the display is ready to accept it. Allow one CPC frame (20 ms)
+  // of lead time before the next nominal 40 ms display update.
+  return micros()-gLcdPublishedAt>=(gFast?250000u:20000u);
 }
 
 void audioTick() {
+#ifdef CPC_USB_RECORDING
+  cpc_recording::frame();
+#endif
   if(gFast) {gAudioLastUs=0;return;}
   if(cpc_audio::size()) {
     M5.Speaker.playRaw(cpc_audio::data(),cpc_audio::size(),16000,false,1,0,false);

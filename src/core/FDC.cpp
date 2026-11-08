@@ -19,6 +19,22 @@ uint16_t dataAt=0,dataSize=0;
 bool transferring=false;
 Sector *current=nullptr;
 uint16_t word(const uint8_t *p) {return p[0]|(p[1]<<8);}
+bool runnableHeader(unsigned directoryTrack,unsigned base,unsigned block) {
+  if(block<2) return false;
+  // AMSDOS Data/System formats: 1 KiB allocation blocks, 9 x 512-byte sectors.
+  const unsigned logical=block*2,track=directoryTrack+logical/9,id=base+logical%9;
+  if(track>=kTracks) return false;
+  for(unsigned i=0;i<counts[track][0];++i) {
+    const auto &s=sectors[track][0][i];
+    if(s.r!=id || s.size<128) continue;
+    uint8_t header[128];
+    if(!disk.seek(s.offset) || disk.read(header,sizeof(header))!=sizeof(header)) return false;
+    unsigned checksum=0;for(unsigned j=0;j<67;++j) checksum+=header[j];
+    if(checksum!=word(header+67) || !(word(header+24) || word(header+64) || header[66])) return false;
+    return header[18]<=1 || (header[18]==2 && word(header+26)!=0);
+  }
+  return false;
+}
 void resultPhase(uint8_t st0,uint8_t st1=0,uint8_t st2=0) {
   transferring=false;
   result[0]=st0;result[1]=st1;result[2]=st2;
@@ -93,8 +109,9 @@ bool mountDsk(const char *path) {
 }
 const char *dskMountError() {return error;}
 const char *dskBootCommand() {
-  static char boot[24]; strcpy(boot,"cat\n");
-  char best[9]={};unsigned rank=0;
+  static char boot[48]; strcpy(boot,"cat\n");
+  if(!mounted) return boot;
+  char best[13]={};unsigned rank=0,bestUser=0;
   // CP/M directory: data format on track 0 (C1...), system format on track 2 (41...).
   for(unsigned t : {0u,2u}) for(unsigned i=0;i<counts[t][0];++i) {
     const Sector &s=sectors[t][0][i];
@@ -103,14 +120,25 @@ const char *dskBootCommand() {
     for(unsigned at=0;at+32<=s.size;at+=32) {
       const uint8_t *e=buffer+at;if(e[0]>15 || e[12]) continue;
       char name[9]={},ext[4]={};
-      for(unsigned j=0;j<8 && (e[j+1]&127)!=' ';++j) name[j]=e[j+1]&127;
+      for(unsigned j=0;j<8;++j) name[j]=e[j+1]&127;
+      for(int j=7;j>=0 && name[j]==' ';--j) name[j]=0;
       for(unsigned j=0;j<3;++j) ext[j]=e[j+9]&127;
-      unsigned score=!memcmp(ext,"BAS",3)?2:!memcmp(ext,"BIN",3)?1:0;
+      for(int j=2;j>=0 && ext[j]==' ';--j) ext[j]=0;
+      if(!*name) continue;
+      unsigned score=!strcmp(ext,"BAS")?3:!strcmp(ext,"BIN")?2:0;
+      if(!score && runnableHeader(t,t==0?0xC1:0x41,e[16])) score=1;
       if(score && (!strcmp(name,"DISC") || !strcmp(name,"DISK") || !strcmp(name,"LOADER") || !strcmp(name,"MENU"))) score+=10;
-      if(score>rank) {rank=score;strcpy(best,name);}
+      if(score>rank) {
+        rank=score;bestUser=e[0];
+        snprintf(best,sizeof(best),"%s.%s",name,ext);
+      }
     }
   }
-  if(rank) snprintf(boot,sizeof(boot),"run\"%s\n",best);
+  // A trailing dot explicitly selects a file without an extension.
+  if(rank) {
+    if(bestUser) snprintf(boot,sizeof(boot),"|user,%u\nrun\"%s\n",bestUser,best);
+    else snprintf(boot,sizeof(boot),"run\"%s\n",best);
+  }
   return boot;
 }
 void loaddsk2Flash(unsigned char) {}

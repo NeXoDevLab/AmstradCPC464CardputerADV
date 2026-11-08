@@ -42,6 +42,15 @@ struct HostStorage final : cpc_files::Storage {
 int main(int argc,char **argv) {
   assert(argc==2);
   using namespace cpc_files;
+  assert(navigate(0,27,1,0)==1 && navigate(1,27,-1,0)==0);
+  assert(navigate(0,27,-1,0)==26 && navigate(26,27,1,0)==0);
+  assert(navigate(0,27,0,1)==6 && navigate(6,27,0,1)==12);
+  assert(navigate(12,27,0,-1)==6 && navigate(0,27,0,-1)==0);
+  assert(navigate(5,27,0,1)==11 && navigate(23,27,0,1)==26);
+  assert(navigate(24,27,0,1)==24 && navigate(26,27,0,1)==26);
+  assert(navigate(26,27,0,-1)==20);
+  assert(navigate(0,0,1,1)==0 && navigate(0,1,0,1)==0);
+  assert(navigate(59,65,0,1)==64 && navigate(64,65,0,-1)==58);
   HostStorage storage(fs::path(argv[1])/"card");
   storage.put(std::string(kRoot)+"/zeta.cDt","source tape");
   storage.put(std::string(kRoot)+"/alpha.DsK","source disk");

@@ -1,0 +1,25 @@
+{
+  "firmware": "FIX12",
+  "device": "Cardputer ADV",
+  "date": "2026-11-08",
+  "width": 240,
+  "height": 135,
+  "source": "Actual USB RGB565 captures; no pixel retouching",
+  "captures": [
+    {
+      "file": "basic-fix12-lcd.png",
+      "usb_status": "CPC-ADV FIX12 pc=1d18 mode=1 heap=24396 psram=0 tape=0 frames=6885 ms=260133 tape_bytes=0/0 fast=0 audio_packets=6883 late=1 max_gap_us=110676 lcd=3358 volume=30 filter_us=18803 spi_us=8210 pack_us=2197 cpu_mhz=240 controls=0 ay=0,0,0 error=",
+      "sha256": "85d47ab8801f2409d9af55d610f7b6a0b7228ef05160767077404dfb5f2e7804"
+    },
+    {
+      "file": "carga-original-fix12.png",
+      "usb_status": "CPC-ADV FIX12 pc=a851 mode=1 heap=19708 psram=0 tape=1 frames=14338 ms=415874 tape_bytes=46506/79473 fast=0 audio_packets=14336 late=4 max_gap_us=110676 lcd=6030 volume=30 filter_us=51689 spi_us=9826 pack_us=2198 cpu_mhz=240 controls=1 ay=0,0,0 error=",
+      "sha256": "7a48bd09e4ee55ce0f54159e79fa638ba214ab66b5c7757330a1661f4cf0d559"
+    },
+    {
+      "file": "juego-fix12.png",
+      "usb_status": "CPC-ADV FIX12 pc=83d2 mode=1 heap=19708 psram=0 tape=0 frames=21094 ms=550842 tape_bytes=79471/79473 fast=0 audio_packets=21092 late=6 max_gap_us=110676 lcd=7798 volume=30 filter_us=25011 spi_us=8339 pack_us=2197 cpu_mhz=240 controls=1 ay=14,0,0 error=",
+      "sha256": "bd9618fe76d239864a8d1eabcd24b7bafb1f2ba13c68b21fa5487e5ce74d5940"
+    }
+  ]
+}

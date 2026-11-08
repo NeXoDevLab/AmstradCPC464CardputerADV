@@ -3,6 +3,7 @@
 #include <cstring>
 #include <string>
 #include <vector>
+#include <utility>
 #include "../../src/core/Keyboard.h"
 #include "../../src/core/Video.h"
 #include "../../src/core/Tape.h"
@@ -34,6 +35,28 @@ int main(int argc,char **argv) {
   assert(volume==0 && cpcVolumeStep(volume,-1)==0);
   for(unsigned i=0;i<30;++i) volume=cpcVolumeStep(volume,1);
   assert(volume==255 && cpcVolumeStep(volume,1)==255);
+  for(bool direct : {false,true}) for(bool fn : {false,true}) {
+    const auto input=cpcGameInput(direct,fn,true,true,true,true,true);
+    bool matrix[10][8]={};
+    cpcApplyGameInput(input,[&](unsigned row,unsigned bit) {assert(row<10 && bit<8);matrix[row][bit]=true;});
+    const bool enabled=direct || fn;
+    for(auto key : {std::pair<unsigned,unsigned>{0,0},{0,2},{1,0},{0,1},
+                    {9,0},{9,1},{9,2},{9,3},{9,4}}) assert(matrix[key.first][key.second]==enabled);
+    assert(!matrix[0][3] && !matrix[5][7]); // No F9 or synthetic space from directions.
+    for(char ch : std::string(";:.,<>/?")) assert(cpcGameArrow(ch,direct,fn)==enabled);
+    assert(!cpcGameArrow('a',direct,fn) && !cpcGameArrow(' ',direct,fn));
+  }
+  // Each physical direction reaches the matching cursor and joystick bit.
+  const unsigned cursorRow[4]={0,0,1,0},cursorBit[4]={0,2,0,1};
+  for(unsigned direction=0;direction<4;++direction) {
+    bool matrix[10][8]={};
+    auto input=cpcGameInput(true,false,direction==0,direction==1,direction==2,direction==3,false);
+    cpcApplyGameInput(input,[&](unsigned row,unsigned bit) {matrix[row][bit]=true;});
+    unsigned count=0;for(auto &row : matrix) for(bool pressed : row) count+=pressed;
+    assert(count==2 && matrix[cursorRow[direction]][cursorBit[direction]] && matrix[9][direction]);
+  }
+  // BASIC keeps punctuation and space; gameplay adds FIRE without losing SPACE.
+  for(char ch : std::string(";.,/ ")) assert(cpcAsciiKey(ch,r,b,shift) && !cpcGameArrow(ch,false,false));
   assert(cpcInkColour(5)==16 && cpcInkColour(11)==15);
   assert(cpcColourComponent(cpcInkColour(5),4)==128);
   assert(cpcColourComponent(cpcInkColour(11),0)==255 && cpcColourComponent(cpcInkColour(11),2)==255);

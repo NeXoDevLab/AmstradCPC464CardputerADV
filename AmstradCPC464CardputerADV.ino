@@ -41,7 +41,7 @@ void setup() {
   delay(100);
   Serial.printf("CPC PSRAM: %s (%u/%u bytes libres/totales)\n", psramFound() ? "activa" : "no disponible", ESP.getFreePsram(), ESP.getPsramSize());
   const esp_partition_t *partition = esp_ota_get_running_partition();
-  if (partition) Serial.printf("CPC-ADV FIX9 partition=%s offset=0x%08x size=%u RAM=fixed-65536\n",
+  if (partition) Serial.printf("CPC-ADV FIX12 partition=%s offset=0x%08x size=%u RAM=fixed-65536\n",
                               partition->label,partition->address,partition->size);
   for (uint16_t y = 0; y < cpc_platform::kCpcHeight; ++y)
     frameLines[y] = frameBuffer + y * cpc_platform::kCpcWidth;

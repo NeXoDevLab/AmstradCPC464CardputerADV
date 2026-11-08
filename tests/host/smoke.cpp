@@ -23,7 +23,8 @@ static unsigned char os[16384],basic[16384],amsdos[16384],pixels[200][320];
 static unsigned char *lines[200];
 namespace cpc_platform { bool loadRoms() { return true; } }
 void frames(int n) { while(n--) { cpuline=0; execz80(); } }
-void key(int row,int bit,int n=5) { cpckeys[row][bit]=0; frames(n); cpckeys[row][bit]=1; frames(5); }
+// Release Shift together with the key, matching the device's typing queue.
+void key(int row,int bit,int n=5) { cpckeys[row][bit]=0; frames(n); cpckeys[row][bit]=1; cpckeys[2][5]=1; frames(5); }
 void typeCommand(const char *s) {
   for (;*s;++s) {
     uint8_t row,bit; bool shift;
@@ -53,7 +54,7 @@ int main(int argc,char **argv) {
  assert(gaborder==19 && !palchange); // border changes must not rebuild screen pixel lookup
  writega(0x7F00,0x44);writega(0x7F00,0);
  if(argc>3) {
-  if(strstr(argv[3],".dsk")) { if(!mountDsk(argv[3])) { puts(dskMountError()); return 4; } assert(!strcmp(dskBootCommand(),"run\"DISC\n"));typeCommand(argc>4?argv[4]:"cat\n"); }
+  if(strstr(argv[3],".dsk")) { if(!mountDsk(argv[3])) { puts(dskMountError()); return 4; } const char *boot=dskBootCommand();assert(strcmp(boot,"cat\n"));printf("AUTOBOOT %s",boot);typeCommand(argc>4 && *argv[4]?argv[4]:boot); }
   else { if(!tape::mountCdt(argv[3])) return 5; typeCommand("|tape\nrun\"\n"); key(5,7); }
   frames(argc>5?atoi(argv[5]):1000);
   if(argc>6 && *argv[6]) {typeCommand(argv[6]);frames(1000);}

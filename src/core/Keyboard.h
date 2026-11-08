@@ -2,6 +2,24 @@
 #include <stdint.h>
 
 constexpr uint8_t cpcDefaultVolume=(30*255+99)/100;
+struct CpcGameInput {bool up,down,left,right,fire;};
+inline CpcGameInput cpcGameInput(bool direct,bool fn,bool up,bool down,bool left,bool right,bool fire) {
+  const bool enabled=direct || fn;
+  return {enabled && up,enabled && down,enabled && left,enabled && right,enabled && fire};
+}
+inline bool cpcGameArrow(char ch,bool direct,bool fn) {
+  if(!direct && !fn) return false;
+  return ch==';' || ch==':' || ch=='.' || ch=='>' ||
+         ch==',' || ch=='<' || ch=='/' || ch=='?';
+}
+template<class Press> inline void cpcApplyGameInput(CpcGameInput input,Press press) {
+  // CPC cursors and joystick 0 use different positions in the keyboard matrix.
+  if(input.up) {press(0,0);press(9,0);}
+  if(input.down) {press(0,2);press(9,1);}
+  if(input.left) {press(1,0);press(9,2);}
+  if(input.right) {press(0,1);press(9,3);}
+  if(input.fire) press(9,4);
+}
 // Reserve only Fn shortcuts; unmodified symbols keep their CPC meaning.
 inline int cpcVolumeKey(char ch,bool fn) {
   if(!fn) return 0;
