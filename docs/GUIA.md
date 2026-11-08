@@ -1,6 +1,6 @@
 # Guía completa · Amstrad CPC 464 en Cardputer ADV
 
-Esta guía corresponde a **FIX4**, con carga desde microSD, modos de cinta
+Esta guía corresponde a **FIX5**, con carga desde microSD, modos de cinta
 original y rápido, audio AY y volumen inicial del 50%.
 
 ## 1. Qué necesitas
@@ -76,7 +76,7 @@ soltarlo cuando el dispositivo se encienda.
 
 ## 4. Compilar con Arduino CLI
 
-Configuración usada para FIX4:
+Configuración usada para FIX5:
 
 | Componente | Versión probada |
 | --- | --- |
@@ -128,19 +128,32 @@ placas conectadas.
 
 ## 5. Actualizar con el BIN
 
-El archivo de `firmware/` es **solo la aplicación**, compilada con la
-configuración anterior. Se escribe en **0x10000** y requiere que la placa ya
-tenga el cargador de arranque y las particiones compatibles. Para la primera
-instalación utiliza la sección 3 o 4, o el binario completo si se ofrece en una
-release. Un binario completo y uno de aplicación no se escriben en la misma
-dirección.
+Usa `firmware/AmstradCPC464-CardputerADV-FIX5-app.bin`, que contiene **solo la
+aplicación**, sin ROMs ni juegos.
+
+### Con M5Launcher
+
+1. Copia el BIN de aplicación FIX5 a la microSD.
+2. Entra en el explorador de SD de Launcher, selecciona ese BIN e instálalo.
+3. Abre el emulador desde Launcher. Las ROMs siguen en `/CPC464/`.
+
+Launcher asigna la partición de destino. No utilices una dirección fija por
+USB para actualizar una placa con Launcher: `0x10000` puede contener el propio
+Launcher. No necesitas un BIN completo de 8 MB para este procedimiento.
+
+### Por USB, instalación independiente sin Launcher
+
+Con el cargador de arranque y la tabla `default_8MB` de las secciones 3 o 4,
+la aplicación está en **0x10000**. El siguiente comando solo corresponde a
+esa instalación independiente. En una placa con Launcher hay que consultar
+primero su tabla y la partición real del emulador.
 
 Con esptool 5 instalado y el puerto identificado:
 
 ```sh
 python3 -m esptool --chip esp32s3 --port PUERTO --baud 460800 \
   write-flash --flash-mode keep --flash-freq keep --flash-size keep \
-  0x10000 firmware/AmstradCPC464-CardputerADV-FIX4-app.bin
+  0x10000 firmware/AmstradCPC464-CardputerADV-FIX5-app.bin
 ```
 
 Este comando actualiza la aplicación y reinicia el dispositivo. No modifica los
@@ -274,6 +287,7 @@ una partida que quieras conservar: los de montaje reinician el CPC.
 | --- | --- |
 | No aparece un puerto USB | Cable de datos, puerto correcto y modo G0 de descarga |
 | SD no disponible | Tarjeta FAT32, inserción correcta y lectura desde el ordenador |
+| FIX4 queda en «Leyendo ROMs de SD» o muestra «Sin memoria CPC» | Instalar FIX5: reserva los 64 KiB del CPC antes de fragmentar la memoria |
 | Faltan ROMs | Rutas exactas y tamaño de 16384 bytes de OS/BASIC |
 | Falta AMSDOS | Copiar `AMSDOS.ROM`; no renombrar una ROM de MS-DOS |
 | Lista vacía | Carpeta `GAMES`, extensiones DSK/CDT/SNA y máximo 64 entradas visibles |
@@ -286,7 +300,7 @@ una partida que quieras conservar: los de montaje reinician el CPC.
 | SNA inválido | Solo se contemplan instantáneas clásicas de 64 KiB; no 128 KiB ni chunks comprimidos |
 | Reinicios al habilitar PSRAM | Usar el perfil probado con PSRAM desactivada |
 
-Al informar de un fallo indica FIX4, formato y mensaje, si estaba activo O/R,
+Al informar de un fallo indica FIX5, formato y mensaje, si estaba activo O/R,
 y los datos de diagnóstico. Una captura ayuda a distinguir el cargador, BASIC
 y el menú del emulador.
 

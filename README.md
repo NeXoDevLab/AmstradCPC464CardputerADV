@@ -4,17 +4,17 @@ Emulador de **Amstrad CPC 464** para **M5Stack Cardputer ADV**, escrito en C++ y
 Arduino. Arranca desde ROMs en microSD, lee discos DSK y cintas CDT, utiliza el
 teclado integrado y reproduce audio AY y la señal de carga de cassette.
 
-**Versión: FIX4 · volumen inicial: 50% · proyecto en desarrollo.**
+**Versión: FIX5 · volumen inicial: 50% · proyecto en desarrollo.**
 
 <p align="center">
   <img src="docs/images/carga-turrican.png" width="720" alt="Captura del Cardputer ADV cargando Turrican con franjas de color en el borde">
 </p>
 
-*Captura actual obtenida por USB del Cardputer durante la carga de Turrican.
+*Captura obtenida por USB del Cardputer en FIX4 durante la carga de Turrican.
 Es la composición digital de 240×135, ampliada aquí; no una fotografía.*
 
 [Guía completa en español](docs/GUIA.md) ·
-[Descargar firmware FIX4](https://github.com/NeXoDevLab/AmstradCPC464CardputerADV/releases/tag/v0.1.0-fix4) ·
+[Descargar FIX5 para Launcher](https://github.com/NeXoDevLab/AmstradCPC464CardputerADV/releases/tag/v0.1.1-fix5) ·
 [Instalación del BIN](docs/GUIA.md#5-actualizar-con-el-bin) ·
 [Pruebas y límites](VALIDACION.md)
 
@@ -33,12 +33,15 @@ Es la composición digital de 240×135, ampliada aquí; no una fotografía.*
 
 FIX4 separa la LCD del productor de audio para evitar huecos periódicos y evita
 recalcular la tabla de píxeles al cambiar solo el borde.
+FIX5 reserva de forma fija los 64 KiB del CPC, evitando el fallo de memoria
+que dejaba el arranque en «Leyendo ROMs de SD». Las ROMs se leen una sola vez
+y los fallos de SD o ROM muestran un mensaje específico.
 
 ## Imágenes del dispositivo
 
 | BASIC | Cinta original |
 | --- | --- |
-| ![BASIC azul marino y amarillo](docs/images/basic.png) | ![Bordes reales durante la carga](docs/images/carga-original.png) |
+| ![BASIC de FIX5 con Launcher, azul marino y amarillo](docs/images/basic-fix5-launcher.png) | ![Bordes reales durante la carga](docs/images/carga-original.png) |
 
 ![Profanation 2, partida desde DSK](docs/images/profanation-partida.png)
 
@@ -49,8 +52,9 @@ Son capturas digitales del framebuffer o de la composición LCD enviadas por USB
 
 1. Prepara una microSD FAT32 con las ROMs del CPC 464 y tus juegos:
    [estructura exacta](docs/GUIA.md#2-preparar-la-microsd).
-2. Instala el proyecto con Arduino IDE/CLI. El BIN incluido es solo la aplicación:
-   para usarlo directamente necesitas un arranque y particiones compatibles.
+2. Con M5Launcher, copia el BIN **FIX5-app.bin** a la SD y elige instalarlo
+   desde Launcher. Para una primera instalación sin Launcher utiliza Arduino
+   IDE/CLI. [Procedimientos](docs/GUIA.md#5-actualizar-con-el-bin).
 3. Reinicia el Cardputer. Debe aparecer BASIC.
 4. Pulsa **Tab**, elige un DSK o CDT y pulsa **Enter**.
 5. Para cinta original usa **O** en el selector. La carga tarda varios minutos,
@@ -93,7 +97,7 @@ Con Arduino CLI y las dependencias instaladas:
 sh scripts/build.sh
 ```
 
-La configuración de FIX4 desactiva PSRAM y utiliza flash QIO de 8 MB,
+La configuración de FIX5 desactiva PSRAM y utiliza flash QIO de 8 MB,
 `default_8MB`, Hardware CDC/JTAG y USB CDC al arrancar.
 [Guía de compilación, instalación y descarga](docs/GUIA.md#4-compilar-con-arduino-cli).
 

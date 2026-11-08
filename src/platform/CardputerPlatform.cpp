@@ -28,6 +28,7 @@ constexpr uint16_t kImageWidth = 240;
 constexpr uint16_t kImageHeight = 135;
 
 bool gReady = false;
+bool gRomsLoaded = false;
 bool gGameMenuRequested = false;
 bool gAmsdosAvailable = false;
 String gAutoKeys;
@@ -91,11 +92,24 @@ void lcdTask(void *) {
   }
 }
 
+void bootStatus(const char *message, const char *detail=nullptr, bool error=false) {
+  Serial.printf("CPC BOOT %s%s%s\n",message,detail?" ":"",detail?detail:"");
+  M5.Display.fillRect(0,34,kScreenWidth,kScreenHeight-34,TFT_BLACK);
+  M5.Display.setTextColor(error?TFT_RED:TFT_WHITE,TFT_BLACK);
+  M5.Display.drawString(message,12,45,1);
+  if(detail) M5.Display.drawString(detail,12,65,1);
+}
+
 bool readExact(const char *path, uint8_t *target) {
+  Serial.printf("CPC BOOT open %s heap=%u max=%u\n",path,ESP.getFreeHeap(),ESP.getMaxAllocHeap());
   File file = SD.open(path, FILE_READ);
-  if (!file || file.size() != 16384) return false;
+  if (!file || file.size() != 16384) {
+    Serial.printf("CPC BOOT ROM missing or wrong size: %s size=%u (expected 16384)\n",path,file ? unsigned(file.size()) : 0);
+    return false;
+  }
   const bool ok = file.read(target, 16384) == 16384;
   file.close();
+  Serial.printf("CPC BOOT read %s %s\n",path,ok?"OK":"ERROR");
   return ok;
 }
 
@@ -166,6 +180,7 @@ bool loadSna(const String &path) {
 
 namespace cpc_platform {
 void begin() {
+  gReady = false;
   auto config = M5.config();
   config.clear_display = true;
   M5Cardputer.begin(config, true);
@@ -186,30 +201,43 @@ void begin() {
   M5.Display.fillScreen(TFT_BLACK);
   M5.Display.setTextColor(TFT_YELLOW);
   M5.Display.drawString("Amstrad CPC 464", 12, 10, 2);
-  M5.Display.setTextColor(TFT_WHITE);
-  M5.Display.drawString("Leyendo ROMs de SD...", 12, 45, 1);
+  bootStatus("Montando tarjeta SD...");
+  Serial.printf("CPC BOOT SPI.begin heap=%u max=%u\n",ESP.getFreeHeap(),ESP.getMaxAllocHeap());
   SPI.begin(kSdSck, kSdMiso, kSdMosi, kSdCs);
+  Serial.println("CPC BOOT SD.begin");
   if (!SD.begin(kSdCs, SPI, 25000000)) {
-    M5.Display.drawString("SD no disponible", 12, 65, 1);
+    bootStatus("SD no disponible","Comprueba la tarjeta FAT32",true);
     return;
   }
-  gReady = loadRoms();
-  if (!gReady) {
-    M5.Display.drawString("Faltan ROMs:", 12, 65, 1);
-    M5.Display.drawString("/CPC464/OS.ROM", 12, 80, 1);
-    M5.Display.drawString("/CPC464/BASIC.ROM", 12, 95, 1);
-  }
+  Serial.println("CPC BOOT SD mounted");
+  if (!loadRoms()) return;
+  bootStatus("Iniciando CPC 464...");
   gLcdMutex=xSemaphoreCreateMutex();
   if(gLcdMutex) xTaskCreatePinnedToCore(lcdTask,"cpc_lcd",4096,nullptr,1,&gLcdTask,0);
+  if(!gLcdTask) Serial.println("CPC BOOT LCD task unavailable; using synchronous display");
+  gReady = true;
+  Serial.printf("CPC BOOT platform ready=%u heap=%u max=%u\n",gReady,ESP.getFreeHeap(),ESP.getMaxAllocHeap());
 }
 
 bool loadRoms() {
-  if (!readExact("/CPC464/OS.ROM", gOsRom) ||
-      !readExact("/CPC464/BASIC.ROM", gBasicRom)) return false;
+  if (!gRomsLoaded) {
+    bootStatus("Leyendo OS.ROM...");
+    if (!readExact("/CPC464/OS.ROM", gOsRom)) {
+      bootStatus("ROM ausente o invalida","/CPC464/OS.ROM: 16384 bytes",true);
+      return false;
+    }
+    bootStatus("Leyendo BASIC.ROM...");
+    if (!readExact("/CPC464/BASIC.ROM", gBasicRom)) {
+      bootStatus("ROM ausente o invalida","/CPC464/BASIC.ROM: 16384 bytes",true);
+      return false;
+    }
+    bootStatus("Leyendo AMSDOS.ROM...");
+    gAmsdosAvailable=readExact("/CPC464/AMSDOS.ROM",gAmsdosRom);
+    gRomsLoaded = true;
+  }
   lorom = gOsRom;
   hirom[0] = gBasicRom;
   for (uint8_t i = 1; i < 16; ++i) hirom[i] = nullptr;
-  gAmsdosAvailable=readExact("/CPC464/AMSDOS.ROM", gAmsdosRom);
   if(gAmsdosAvailable) hirom[7] = gAmsdosRom;
   return true;
 }
@@ -221,8 +249,9 @@ void pollKeyboard() {
   M5Cardputer.update();
   while(Serial.available()) {
     char ch=Serial.read();
-    if(ch=='?') Serial.printf("CPC-ADV FIX4 pc=%04x mode=%u heap=%u psram=%u tape=%u frames=%u ms=%u tape_bytes=%u/%u fast=%u audio_packets=%u late=%u max_gap_us=%u lcd=%u volume=%u ay=%u,%u,%u error=%s\n",
+    if(ch=='?') Serial.printf("CPC-ADV FIX5 pc=%04x mode=%u heap=%u psram=%u tape=%u frames=%u ms=%u tape_bytes=%u/%u fast=%u audio_packets=%u late=%u max_gap_us=%u lcd=%u volume=%u ay=%u,%u,%u error=%s\n",
       pc,scrmode,ESP.getFreeHeap(),ESP.getPsramSize(),tape::active(),gFrameCount,millis(),tape::position(),tape::fileSize(),gFast,gAudioPackets,gAudioLate,gAudioMaxGapUs,gLcdFrames.load(),unsigned(M5.Speaker.getVolume())*100/255,psgregs[8],psgregs[9],psgregs[10],tape::mountError());
+    if(!gReady) continue;
     if(ch=='c') {gAudioLastUs=gAudioMaxGapUs=gAudioLate=gAudioPackets=0;}
     if(ch=='f') {gFast=!gFast;M5.Speaker.stop();}
     if(ch=='s') {
@@ -347,7 +376,7 @@ bool openGameMenu() {
     if (redraw) {
       M5.Display.fillScreen(TFT_BLACK);
       M5.Display.setTextColor(TFT_YELLOW);
-      M5.Display.drawString("Juegos CPC - FIX4", 8, 4, 2);
+      M5.Display.drawString("Juegos CPC - FIX5", 8, 4, 2);
       M5.Display.drawString(gOriginalLoad?"O:original ON  R:rapida":"O:original  R:rapida ON",8,20,1);
       M5.Display.setTextColor(TFT_WHITE);
       if (!count) {

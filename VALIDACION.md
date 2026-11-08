@@ -1,6 +1,42 @@
-# Verificación de FIX4 — 6 de noviembre de 2026
+# Verificación de FIX5 y versiones anteriores
 
-## Continuidad de audio y volumen (FIX4)
+## Arranque con particiones de M5Launcher (FIX5, 8 de noviembre de 2026)
+
+El BIN FIX4 instalado por Launcher se verificó por digest: coincidía con el
+archivo entregado. El diagnóstico leyó las tres ROMs correctamente; el fallo
+posterior era `malloc(65536)`: devolvía nulo con 110.672 bytes libres en total,
+pero un bloque máximo de solo 65.524 bytes. El mensaje anterior de lectura de
+ROMs permanecía en pantalla y el error de memoria no tenía una ubicación propia.
+
+FIX5 reserva los 64 KiB del CPC en memoria estática, lee las ROMs una sola vez
+y vuelve a enlazar sus bancos después de `initz80`, sin acceder otra vez a SD.
+El arranque muestra cada paso y los errores de SD/ROM tienen un mensaje visible.
+Si falla la preparación, no se ejecuta el núcleo CPC.
+
+Se actualizó únicamente la partición `amstra` del dispositivo probado
+(`0x6f0000`, tamaño `0xc0000`), conservando su tabla, Launcher y los otros
+firmwares. Esta dirección es específica de esa tabla; no es una dirección
+genérica para instalar por USB. El BIN ocupa 726.112 bytes y cabe en ese espacio.
+
+El arranque completó la lectura de OS/BASIC/AMSDOS y llegó a BASIC. Captura USB
+de la composición LCD: [BASIC de FIX5](docs/images/basic-fix5-launcher.png),
+con papel azul y texto amarillo. Registro en funcionamiento: 36.708 bytes
+libres, volumen 50%, 1.171 paquetes de audio, ningún intervalo mayor de 26 ms
+y máximo de 21.746 microsegundos antes de la captura USB.
+
+Se repitió el arranque tres veces: siempre llegó a BASIC, con una única
+lectura de cada ROM por arranque. El DSK de Profanation 2 se montó y ejecutó
+su pantalla gráfica y menú. El CDT se montó sin error y comenzó la lectura
+a velocidad original: avance de 1.131 a 6.894/73.221 bytes, motor activo,
+bordes de carga y volumen 50%. Esta comprobación de FIX5 verifica el inicio de la carga CDT;
+la prueba completa de ese archivo descrita más abajo corresponde a FIX4.
+
+La compilación informa de 284.620 bytes de variables globales (86% del límite
+que presenta Arduino). Los 64 KiB antes dinámicos se incluyen ahora en ese
+total. Se mantiene PSRAM desactivada y se comprueba el funcionamiento en placa;
+las pruebas sintéticas de teclado, paleta, vídeo, cinta, FDC y audio pasan.
+
+## Continuidad de audio y volumen (FIX4, 6 de noviembre de 2026)
 
 El refresco SPI de la LCD se ejecuta en otra tarea/núcleo, con una instantánea
 inmutable de 32.400 bytes y exclusión mutua para los menús. La emulación publica

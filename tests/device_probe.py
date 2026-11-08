@@ -1,4 +1,4 @@
-"""USB diagnostics for CPC-ADV FIX4; uses only Python's standard library."""
+"""USB diagnostics for CPC-ADV; uses only Python's standard library."""
 import os
 import select
 import sys
