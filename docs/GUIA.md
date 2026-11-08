@@ -1,7 +1,7 @@
 # Guía completa · Amstrad CPC 464 en Cardputer ADV
 
-Esta guía corresponde a **FIX5**, con carga desde microSD, modos de cinta
-original y rápido, audio AY y volumen inicial del 50%.
+Esta guía corresponde a **FIX9**, con carga desde microSD, modos de cinta
+original y rápido, audio AY y volumen inicial del 30%.
 
 ## 1. Qué necesitas
 
@@ -25,14 +25,22 @@ CPC464/
 ├── BASIC.ROM         # BASIC del CPC 464, exactamente 16384 bytes
 ├── AMSDOS.ROM        # exactamente 16384 bytes; necesario para DSK
 └── GAMES/
-    ├── juego.dsk
-    ├── juego.cdt
+    ├── CDT/
+    │   └── juego.cdt
+    ├── DSK/
+    │   └── juego.dsk
     └── instantanea.sna
 ```
 
 Respeta los nombres y las mayúsculas de las carpetas y ROMs. Evita mezclar el
 sistema de un CPC 6128 con el BASIC de un CPC 464. `AMSDOS.ROM` no es
 `MSDOS.ROM`: se trata de la ROM del sistema de discos del CPC.
+
+El selector permite entrar en subcarpetas con Enter. Para volver utiliza
+Retroceso o selecciona `[ .. ] Volver` y pulsa Enter. La navegación se mantiene
+dentro de `GAMES/`. También se siguen mostrando los juegos sueltos en esa raíz.
+Las carpetas aparecen antes que los archivos; se muestran hasta 64 entradas
+por carpeta y se ocultan los nombres que empiezan por punto.
 
 Las ROMs y juegos quedan fuera de este repositorio y de sus binarios. Las
 capturas de juegos sirven para documentar las pruebas; no contienen las imágenes
@@ -76,7 +84,7 @@ soltarlo cuando el dispositivo se encienda.
 
 ## 4. Compilar con Arduino CLI
 
-Configuración usada para FIX5:
+Configuración usada para FIX9:
 
 | Componente | Versión probada |
 | --- | --- |
@@ -128,12 +136,12 @@ placas conectadas.
 
 ## 5. Actualizar con el BIN
 
-Usa `firmware/AmstradCPC464-CardputerADV-FIX5-app.bin`, que contiene **solo la
+Usa `firmware/AmstradCPC464-CardputerADV-FIX9-app.bin`, que contiene **solo la
 aplicación**, sin ROMs ni juegos.
 
 ### Con M5Launcher
 
-1. Copia el BIN de aplicación FIX5 a la microSD.
+1. Copia el BIN de aplicación FIX9 a la microSD.
 2. Entra en el explorador de SD de Launcher, selecciona ese BIN e instálalo.
 3. Abre el emulador desde Launcher. Las ROMs siguen en `/CPC464/`.
 
@@ -153,7 +161,7 @@ Con esptool 5 instalado y el puerto identificado:
 ```sh
 python3 -m esptool --chip esp32s3 --port PUERTO --baud 460800 \
   write-flash --flash-mode keep --flash-freq keep --flash-size keep \
-  0x10000 firmware/AmstradCPC464-CardputerADV-FIX5-app.bin
+  0x10000 firmware/AmstradCPC464-CardputerADV-FIX9-app.bin
 ```
 
 Este comando actualiza la aplicación y reinicia el dispositivo. No modifica los
@@ -168,14 +176,16 @@ La suma SHA-256 del BIN publicado está en `firmware/SHA256SUMS`.
 | Botón A / G0, si está disponible | Acceso alternativo al selector |
 | Coma / punto | Anterior / siguiente en el selector |
 | Arriba / abajo | Navegar en el selector |
-| Enter | Seleccionar y cargar |
+| Enter | Entrar en una carpeta o cargar el juego seleccionado |
+| Retroceso / `[ .. ] Volver` | Volver a la carpeta anterior |
 | Tecla de acento grave | Salir del selector |
 | O, en el selector | Carga original: bordes y sonido de cinta |
 | R, en el selector | Modo rápido, con audio silenciado |
 | S, en el selector | Activar / desactivar el sonido de cinta |
 | Fn+F | Alternar modo rápido durante la ejecución |
 | Fn+B | Mostrar / ocultar el borde fuera de la carga |
-| Fn+= / Fn+- | Subir / bajar volumen, con porcentaje en pantalla |
+| Fn+= / Fn+- | Subir / bajar volumen un 5%, con porcentaje en pantalla |
+| + / - / = sin Fn | Escribir los signos dentro del CPC |
 | Fn + flechas impresas | Cursores CPC y joystick 0 |
 | Fn+espacio | Disparo del joystick 0 |
 
@@ -186,8 +196,8 @@ juego: puede ser necesario escoger teclado o joystick en su menú.
 
 ## 7. Cargar DSK
 
-1. Copia el DSK en `/CPC464/GAMES/` y comprueba que exista `AMSDOS.ROM`.
-2. Abre el selector con Tab, elige el disco y pulsa Enter.
+1. Copia el DSK en `/CPC464/GAMES/DSK/` y comprueba que exista `AMSDOS.ROM`.
+2. Abre el selector con Tab, entra en DSK con Enter, elige el disco y pulsa Enter.
 3. El emulador monta la imagen, reinicia el CPC y escribe `|DISC`.
 4. Busca un cargador BAS/BIN en el directorio del disco. Da prioridad a nombres
    como `DISC`, `DISK`, `LOADER` o `MENU` y escribe el comando RUN correspondiente.
@@ -210,8 +220,8 @@ están protegidos contra escritura; guardar partidas en el DSK no está implemen
 
 ## 8. Cargar CDT como una cinta original
 
-1. Copia el CDT en `/CPC464/GAMES/`.
-2. Abre el selector y pulsa O para elegir el modo original.
+1. Copia el CDT en `/CPC464/GAMES/CDT/`.
+2. Abre el selector, entra en CDT y pulsa O para elegir el modo original.
 3. Selecciona la cinta y pulsa Enter.
 4. El emulador monta la cinta, reinicia el CPC y escribe `|TAPE`, `RUN"` y
    una pulsación de espacio para comenzar.
@@ -233,12 +243,25 @@ a velocidad normal y escuchar el sonido.
 
 ## 9. Vídeo y sonido
 
-La pantalla física es de 240×135. El área CPC de 320×200 se reduce completa;
-durante la cinta se compone una vista de 384×240 que incluye el borde. Fuera
+La pantalla física es de 240×135. FIX6 ajusta el área activa del juego a toda
+la LCD, conservando sus cuatro extremos. Por ejemplo, los juegos que usan
+256×128 aprovechan la pantalla sin los márgenes del framebuffer de 320×200.
+El BASIC conserva su imagen completa. Durante la cinta se compone una vista
+de 384×240 que incluye el borde. Fuera
 de la carga, Fn+B permite mostrarlo para ver los cambios de `BORDER` desde BASIC.
 El BASIC arranca con azul marino y amarillo.
 
-El volumen inicial es 50%. Fn+= lo sube y Fn+- lo baja. El audio mezcla los
+La lista muestra seis juegos con letras de 10 píxeles. El título amarillo del
+arranque tiene 19 píxeles; el título del selector conserva su tamaño anterior.
+
+El volumen inicial es 30%. `Fn` + `=` lo sube y `Fn` + `-` lo baja en pasos del 5%, con
+límites de 0 a 100%; mantener pulsada la tecla repite el ajuste. En el teclado
+del Cardputer, `=` comparte tecla con `+`: para subir el volumen basta Fn+=,
+sin Mayús. Para escribir los signos en el CPC, pulsa sin Fn: Mayús+= para `+`,
+`-` para restar y `=` para asignar en BASIC. El selector muestra el
+porcentaje y, durante la emulación, aparece un indicador temporal.
+
+El audio mezcla los
 canales AY y, si está activada, la señal de cinta. S afecta a la cinta; el modo
 rápido silencia la salida. Una pausa de cinta debe distinguirse de un bloqueo:
 puede haber silencio o pantalla negra durante partes de la carga.
@@ -273,13 +296,20 @@ sips -s format png carga.ppm --out carga.png
 Las capturas del repositorio se han obtenido así desde el dispositivo. Son
 capturas digitales, no fotografías. Capturar interrumpe brevemente la emulación
 mientras transmite los píxeles; no lo hagas si estás midiendo continuidad de audio.
-El diagnóstico USB del script no funciona dentro del bucle bloqueante del selector:
-sal del menú para utilizarlo.
+Las capturas `v` y `s` requieren salir del selector. Dentro del selector,
+`?` informa de la carpeta y selección, y `l` lista su contenido. Los comandos
+USB `j`/`k`, `e`, `b` y `q` permiten probar movimiento, entrada, vuelta y salida.
 
-Otros comandos técnicos: `l` lista imágenes; `d` / `t` montan un DSK/CDT de prueba
+Otros comandos técnicos: `+`/`-` cambian el volumen; `m` abre el selector; `l` lista la carpeta actual;
+`d` / `t` buscan un DSK/CDT de prueba en la raíz y en `DSK/` o `CDT/`
 (con preferencia por Profanation si está presente); `3` pulsa esa tecla; `f`
 alterna modo rápido y `c` reinicia los contadores de audio. No los uses durante
 una partida que quieras conservar: los de montaje reinician el CPC.
+
+El comando USB `o`, fuera del selector y antes de montar un juego, crea
+`CDT/` y `DSK/` y mueve por formato los archivos sueltos de la raíz. No
+sobrescribe archivos existentes: en una colisión deja el original en la raíz
+y la informa como omitida. El resultado indica archivos movidos y fallos.
 
 ## 11. Solución de problemas
 
@@ -287,20 +317,21 @@ una partida que quieras conservar: los de montaje reinician el CPC.
 | --- | --- |
 | No aparece un puerto USB | Cable de datos, puerto correcto y modo G0 de descarga |
 | SD no disponible | Tarjeta FAT32, inserción correcta y lectura desde el ordenador |
-| FIX4 queda en «Leyendo ROMs de SD» o muestra «Sin memoria CPC» | Instalar FIX5: reserva los 64 KiB del CPC antes de fragmentar la memoria |
+| FIX4 queda en «Leyendo ROMs de SD» o muestra «Sin memoria CPC» | Instalar FIX9: incluye la reserva fija de los 64 KiB del CPC introducida en FIX5 |
 | Faltan ROMs | Rutas exactas y tamaño de 16384 bytes de OS/BASIC |
 | Falta AMSDOS | Copiar `AMSDOS.ROM`; no renombrar una ROM de MS-DOS |
-| Lista vacía | Carpeta `GAMES`, extensiones DSK/CDT/SNA y máximo 64 entradas visibles |
+| Lista vacía | Carpeta actual, extensiones DSK/CDT/SNA y máximo 64 entradas por carpeta; `[ .. ] Volver` permite salir de una carpeta vacía |
 | DSK vuelve a BASIC | Revisar `CAT`, nombre del cargador y compatibilidad del disco |
 | CDT negro y con ruido | Puede estar cargando; consultar avance `tape_bytes` por USB |
 | No hay sonido | Modo original, S activado y volumen; el modo rápido es silencioso |
-| Sonido bajo | Fn+=; el volumen inicial es 50% |
+| Sonido bajo | Fn+=; el volumen inicial es 30% |
 | Se ven archivos duplicados en macOS | El selector oculta los `._`; el Finder puede mostrarlos igualmente |
 | ZIP no aparece | Descomprimir en el ordenador y copiar DSK/CDT/SNA compatibles |
+| TAP no aparece | Formato no implementado; utiliza una versión CDT de Amstrad CPC |
 | SNA inválido | Solo se contemplan instantáneas clásicas de 64 KiB; no 128 KiB ni chunks comprimidos |
 | Reinicios al habilitar PSRAM | Usar el perfil probado con PSRAM desactivada |
 
-Al informar de un fallo indica FIX5, formato y mensaje, si estaba activo O/R,
+Al informar de un fallo indica FIX9, formato y mensaje, si estaba activo O/R,
 y los datos de diagnóstico. Una captura ayuda a distinguir el cargador, BASIC
 y el menú del emulador.
 

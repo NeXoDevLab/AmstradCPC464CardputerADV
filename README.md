@@ -4,7 +4,7 @@ Emulador de **Amstrad CPC 464** para **M5Stack Cardputer ADV**, escrito en C++ y
 Arduino. Arranca desde ROMs en microSD, lee discos DSK y cintas CDT, utiliza el
 teclado integrado y reproduce audio AY y la señal de carga de cassette.
 
-**Versión: FIX5 · volumen inicial: 50% · proyecto en desarrollo.**
+**Versión: FIX9 · volumen inicial: 30% · proyecto en desarrollo.**
 
 <p align="center">
   <img src="docs/images/carga-turrican.png" width="720" alt="Captura del Cardputer ADV cargando Turrican con franjas de color en el borde">
@@ -14,7 +14,7 @@ teclado integrado y reproduce audio AY y la señal de carga de cassette.
 Es la composición digital de 240×135, ampliada aquí; no una fotografía.*
 
 [Guía completa en español](docs/GUIA.md) ·
-[Descargar FIX5 para Launcher](https://github.com/NeXoDevLab/AmstradCPC464CardputerADV/releases/tag/v0.1.1-fix5) ·
+[Descargar FIX9 para Launcher](https://github.com/NeXoDevLab/AmstradCPC464CardputerADV/releases/tag/v0.1.2-fix9) ·
 [Instalación del BIN](docs/GUIA.md#5-actualizar-con-el-bin) ·
 [Pruebas y límites](VALIDACION.md)
 
@@ -36,6 +36,14 @@ recalcular la tabla de píxeles al cambiar solo el borde.
 FIX5 reserva de forma fija los 64 KiB del CPC, evitando el fallo de memoria
 que dejaba el arranque en «Leyendo ROMs de SD». Las ROMs se leen una sola vez
 y los fallos de SD o ROM muestran un mensaje específico.
+FIX6 amplía el área activa de los juegos a toda la LCD, conserva los bordes
+durante la carga original y ajusta los tamaños de texto del selector y arranque.
+FIX7 permite separar las cintas en `GAMES/CDT/` y los discos en `GAMES/DSK/`,
+entrar en carpetas y volver con Retroceso o `[ .. ] Volver`. Los juegos que
+quedan directamente en `GAMES/` también aparecen en el selector.
+FIX9 arranca con el volumen al 30% y permite ajustarlo con `Fn` + `=` (tecla
+del signo `+`) y `Fn` + `-` en pasos del 5%, durante la emulación y en el
+selector. Sin Fn, los signos mantienen su función en el CPC.
 
 ## Imágenes del dispositivo
 
@@ -43,7 +51,7 @@ y los fallos de SD o ROM muestran un mensaje específico.
 | --- | --- |
 | ![BASIC de FIX5 con Launcher, azul marino y amarillo](docs/images/basic-fix5-launcher.png) | ![Bordes reales durante la carga](docs/images/carga-original.png) |
 
-![Profanation 2, partida desde DSK](docs/images/profanation-partida.png)
+![Profanation 2 a pantalla completa en FIX6, cargado desde CDT](docs/images/profanation-fix6-lcd.png)
 
 Son capturas digitales del framebuffer o de la composición LCD enviadas por USB.
 [Procedencia y versiones de las imágenes](docs/images/README.md).
@@ -52,11 +60,11 @@ Son capturas digitales del framebuffer o de la composición LCD enviadas por USB
 
 1. Prepara una microSD FAT32 con las ROMs del CPC 464 y tus juegos:
    [estructura exacta](docs/GUIA.md#2-preparar-la-microsd).
-2. Con M5Launcher, copia el BIN **FIX5-app.bin** a la SD y elige instalarlo
+2. Con M5Launcher, copia el BIN **FIX9-app.bin** a la SD y elige instalarlo
    desde Launcher. Para una primera instalación sin Launcher utiliza Arduino
    IDE/CLI. [Procedimientos](docs/GUIA.md#5-actualizar-con-el-bin).
 3. Reinicia el Cardputer. Debe aparecer BASIC.
-4. Pulsa **Tab**, elige un DSK o CDT y pulsa **Enter**.
+4. Pulsa **Tab**, entra en **CDT** o **DSK** con **Enter** y elige el juego.
 5. Para cinta original usa **O** en el selector. La carga tarda varios minutos,
    como una cinta; el centro puede ponerse negro mientras entran los bloques.
 
@@ -64,7 +72,9 @@ Son capturas digitales del framebuffer o de la composición LCD enviadas por USB
 /CPC464/OS.ROM       16384 bytes
 /CPC464/BASIC.ROM    16384 bytes
 /CPC464/AMSDOS.ROM   16384 bytes; necesario para DSK
-/CPC464/GAMES/       tus archivos DSK, CDT o SNA compatibles
+/CPC464/GAMES/CDT/   tus cintas CDT
+/CPC464/GAMES/DSK/   tus discos DSK
+/CPC464/GAMES/       también admite juegos sueltos e instantáneas SNA
 ```
 
 **No se incluyen ROMs ni juegos**, tampoco dentro del firmware.
@@ -75,12 +85,14 @@ Son capturas digitales del framebuffer o de la composición LCD enviadas por USB
 | --- | --- |
 | Tab | Selector de juegos |
 | Coma / punto, o cursores | Navegar en el selector |
-| Enter | Cargar |
+| Enter | Entrar en una carpeta o cargar un juego |
+| Retroceso / `[ .. ] Volver` | Volver a la carpeta anterior |
 | O / R, en el selector | Carga original / modo rápido |
 | S, en el selector | Sonido de cinta ON/OFF |
 | Fn+F | Alternar modo rápido |
 | Fn+B | Mostrar el borde fuera de la carga |
-| Fn+= / Fn+- | Subir / bajar volumen |
+| Fn+= / Fn+- | Subir / bajar volumen en pasos del 5% |
+| + / - / = sin Fn | Escribir los signos dentro del CPC |
 | Fn + flechas impresas | Cursores CPC y joystick 0 |
 | Fn+espacio | Disparo |
 
@@ -97,7 +109,7 @@ Con Arduino CLI y las dependencias instaladas:
 sh scripts/build.sh
 ```
 
-La configuración de FIX5 desactiva PSRAM y utiliza flash QIO de 8 MB,
+La configuración de FIX9 desactiva PSRAM y utiliza flash QIO de 8 MB,
 `default_8MB`, Hardware CDC/JTAG y USB CDC al arrancar.
 [Guía de compilación, instalación y descarga](docs/GUIA.md#4-compilar-con-arduino-cli).
 
@@ -109,6 +121,7 @@ La configuración de FIX5 desactiva PSRAM y utiliza flash QIO de 8 MB,
 | CDT | Bloques estándar/turbo, tonos, pulsos, datos y metadatos implementados; no todos los tipos TZX |
 | SNA | Instantáneas clásicas de 64 KiB; no 128 KiB ni chunks comprimidos |
 | ZIP | No implementado: descomprimir en el ordenador |
+| TAP | No implementado; para cintas utiliza CDT de Amstrad CPC |
 
 **Profanation 2** se ha comprobado por DSK y CDT en las pruebas del núcleo; en
 el Cardputer se registraron la partida desde DSK y la lectura completa del CDT

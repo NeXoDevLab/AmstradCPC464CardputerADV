@@ -1,4 +1,95 @@
-# Verificación de FIX5 y versiones anteriores
+# Verificación de FIX9 y versiones anteriores
+
+## Volumen inicial y tecla Fn (FIX9, 8 de noviembre de 2026)
+
+El volumen inicial pasa a 77/255, que muestra 30%. Fn+= sube y Fn+- baja
+en pasos del 5%, tanto en el selector como durante la emulación. La tecla
+del signo + comparte posición con =; no hace falta Mayús para este atajo.
+Sin Fn, los signos +, - y = se envían al CPC. Estos controles sustituyen
+a los de FIX8; no se requiere Opt.
+
+Las pruebas ASan/UBSan verifican los atajos con Fn, los signos sin Fn,
+el volumen inicial, 30→35→30 y los límites de 0 y 100%.
+En el Cardputer ADV se verificaron por USB el arranque FIX9 al 30%, esos
+pasos y límites mediante el mismo ajuste que usa el teclado, y el control
+dentro del selector. No se simularon pulsaciones físicas del teclado.
+El binario de aplicación ocupa 735.920 bytes y su escritura se verificó
+por hash en la partición amstra (0x6f0000), conservando Launcher.
+El dispositivo quedó con el selector abierto y el volumen al 30%.
+
+## Volumen directo (FIX8, 8 de noviembre de 2026)
+
+Los signos + y - ajustan el volumen en pasos del 5%, con repetición al mantener
+la tecla y límites de 0 a 100%. Se conservan Fn+= y Fn+-. Opt permite enviar
+los signos al CPC; el signo = sin Fn conserva la asignación de BASIC. Los
+modificadores de un atajo de volumen aislado no se envían a la matriz CPC.
+
+El selector muestra el porcentaje, y la emulación muestra un indicador
+temporal. Las pruebas con sanitizadores verifican atajos, paso 50→55→50,
+límites inferior/superior y envío de signos mediante Opt.
+
+En el Cardputer ADV se comprobaron por USB, usando el mismo ajuste que el
+teclado, 50→55→50, saturación en 0 y 100%, retorno a 50%, ajuste dentro del
+selector y lectura del volumen del altavoz al salir. La aplicación ocupa
+735.904 bytes. La escritura se verificó por hash; se conservó Launcher y
+se dejó el selector abierto con el volumen restaurado al 50%.
+
+## Carpetas de juegos (FIX7, 8 de noviembre de 2026)
+
+El selector muestra carpetas antes que archivos, permite entrar con Enter y
+volver con Retroceso o `[ .. ] Volver`. Conserva los archivos de la raíz y
+oculta los nombres que empiezan por punto. La navegación queda dentro de
+`/CPC464/GAMES/` y recuerda la última carpeta visitada durante la sesión.
+
+Se usa una sola lista de hasta 64 entradas, reservada en el heap y reutilizada
+al cambiar de carpeta, liberando los nombres anteriores. Las pruebas con ASan
+y UBSan cubren carpetas anidadas, extensiones con mayúsculas mezcladas, nombres
+UTF-8, límite de entradas, lotes de más de 64 movimientos, colisiones,
+idempotencia y conservación de los archivos ante errores.
+
+En el Cardputer ADV se crearon `CDT/` y `DSK/`: 22 cintas se movieron a `CDT/`,
+sin colisiones ni fallos; no había discos DSK para mover. Una segunda ejecución
+de la organización no movió más archivos. Se verificaron entrada en CDT,
+listado de sus 22 archivos, vuelta a GAMES, entrada en DSK vacía y vuelta.
+También se montó Profanation desde `/CPC464/GAMES/CDT/` y comenzó la lectura.
+Se escribió únicamente la partición del emulador y se conservó Launcher.
+
+Los ajustes de vídeo y los marcos propios de los juegos conservan el
+comportamiento aprobado de FIX6.
+
+## Textos y área de juego (FIX6, 8 de noviembre de 2026)
+
+La lista utiliza la fuente original ampliada de 8 a 10 píxeles, con seis filas.
+El título amarillo de arranque «Amstrad CPC 464» pasa de 16 a 19 píxeles; el
+título del selector conserva 16. Los textos de carga de 8 píxeles pasan a 10,
+y «Montando imagen» pasa de 16 a 18. Se ajustan las posiciones para que los
+textos no se solapen y se conserva la extensión de los nombres abreviados.
+
+La composición LCD usa el área activa declarada por el CRTC. En Profanation
+es 256×128, centrada horizontalmente dentro del framebuffer de 320×200:
+ahora esa área se amplía a 240×135. El BASIC conserva su muestreo y la carga
+original mantiene su composición con bordes. No se recortan regiones por
+detectar píxeles negros: el negro puede formar parte de los gráficos del juego.
+
+Las pruebas con AddressSanitizer y UndefinedBehaviorSanitizer comprueban
+las cuatro esquinas visibles, ausencia de márgenes añadidos en el juego,
+límites del framebuffer, geometrías vacías/excesivas y bordes de cinta.
+También pasan las pruebas completas anteriores de BASIC, DSK, CDT, teclado,
+paleta, motor, FDC y audio con los archivos externos de Profanation 2.
+
+Se comprueba además el final de cinta: una pausa pendiente con el motor ya
+detenido no mantiene el marco de carga cuando todos los bytes se han leído.
+Las pausas intermedias y la reproducción de los últimos pulsos conservan el borde.
+
+FIX6 ocupa 727.648 bytes y se instaló en la partición `amstra` del Cardputer
+ADV, conservando Launcher. La escritura terminó con verificación del hash y
+el arranque leyó OS/BASIC/AMSDOS correctamente. Volumen inicial: 50%.
+
+En placa se volvió a cargar Profanation 2 desde CDT: 73.221/73.221 bytes sin
+error y ejecución de su pantalla gráfica. Se capturó la composición LCD
+de 240×135 ampliada durante la prueba en modo rápido:
+[captura de FIX6](docs/images/profanation-fix6-lcd.png). Las pruebas de DSK
+de esta revisión se ejecutaron en el host con los sanitizadores indicados.
 
 ## Arranque con particiones de M5Launcher (FIX5, 8 de noviembre de 2026)
 

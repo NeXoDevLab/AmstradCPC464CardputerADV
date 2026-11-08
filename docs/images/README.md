@@ -6,6 +6,7 @@ Capturas realizadas durante el desarrollo el 6 y el 8 de noviembre de 2026.
 | --- | --- | --- |
 | `carga-turrican.png` | Turrican cargando con bordes de color | Captura USB actual de la composición 240×135 de FIX4 |
 | `basic-fix5-launcher.png` | BASIC tras corregir el arranque con Launcher | Composición LCD 240×135 obtenida por USB en FIX5 el 8 de noviembre |
+| `profanation-fix6-lcd.png` | Profanation 2 ampliado a toda la LCD tras cargar CDT | Composición 240×135 capturada por USB en FIX6 el 8 de noviembre, durante la validación en modo rápido |
 | `basic.png` | Arranque BASIC, azul marino y amarillo | Framebuffer 320×200 obtenido por USB durante la validación de FIX2/FIX3 |
 | `carga-original.png` | Bordes durante lectura de una cinta | Composición LCD 240×135 capturada por USB en FIX3 |
 | `profanation-partida.png` | Partida de Profanation 2 desde DSK | Framebuffer 320×200 obtenido por USB en FIX2/FIX3 |

@@ -1,5 +1,22 @@
 #pragma once
 #include <stdint.h>
+
+constexpr uint8_t cpcDefaultVolume=(30*255+99)/100;
+// Reserve only Fn shortcuts; unmodified symbols keep their CPC meaning.
+inline int cpcVolumeKey(char ch,bool fn) {
+  if(!fn) return 0;
+  if(ch=='+' || ch=='=') return 1;
+  return ch=='-' || ch=='_' ? -1 : 0;
+}
+inline uint8_t cpcVolumeStep(uint8_t volume,int direction) {
+  if(!direction) return volume;
+  int percent=int(volume)*100/255;
+  percent+=direction>0 ? 5 : -5;
+  if(percent<0) percent=0;
+  if(percent>100) percent=100;
+  // Round upwards so the displayed integer percentage stays exact.
+  return static_cast<uint8_t>((percent*255+99)/100);
+}
 // CPC matrix: bits of AY port A, selected by PPI port C low nibble.
 inline bool cpcAsciiKey(char ch, uint8_t &row, uint8_t &bit, bool &shift) {
   shift = ch >= 'A' && ch <= 'Z';

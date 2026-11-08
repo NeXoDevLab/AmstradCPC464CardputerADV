@@ -29,11 +29,36 @@ inline uint8_t cpcPixelPen(uint8_t data, unsigned mode, unsigned pixel) {
   return (data & (0xC0 >> (pixel*2))) ? 1 : 0;
 }
 
+struct CpcViewport {
+  unsigned left, top, width, height;
+};
+
+inline bool cpcTapeBorderVisible(bool original,bool fast,bool loaded,bool active,
+                                 unsigned position,unsigned size) {
+  // A final tape pause may remain queued after the game stops the motor.
+  // Keep intermediate loading pauses, but release the border at end of tape.
+  return original && !fast && loaded && (active || position<size);
+}
+
+// Match the area actually rendered by the CRTC, without guessing from black
+// pixels: games may legitimately draw black scenery inside the active picture.
+inline CpcViewport cpcActiveViewport(unsigned columns,unsigned rows,unsigned scanlines) {
+  if(!columns || !rows || !scanlines) return {0,0,320,200};
+  const unsigned width=columns>=40 ? 320 : columns*8;
+  const unsigned height=rows>200/scanlines ? 200 : rows*scanlines;
+  return {(320-width)/2,0,width,height};
+}
+
 // Same composition for LCD output and USB/test captures. A 384x240 viewport
 // retains the full 320x200 picture plus the real CRTC border scanlines.
 inline uint8_t cpcDisplayPixel(unsigned char *const *picture, const unsigned char *border,
-                              unsigned x,unsigned y,bool showBorder) {
-  if(!showBorder) return picture[y*200/135][x*320/240];
+                              unsigned x,unsigned y,bool showBorder,
+                              CpcViewport active={0,0,320,200}) {
+  if(!showBorder) {
+    // Preserve the BASIC sampling; smaller game screens retain all four edges.
+    if(active.width==320 && active.height==200) return picture[y*200/135][x*320/240];
+    return picture[active.top+y*(active.height-1)/134][active.left+x*(active.width-1)/239];
+  }
   unsigned vx=x*384/240,vy=y*240/135;
   if(vx>=32 && vx<352 && vy>=20 && vy<220) return picture[vy-20][vx-32];
   return border[vy+52];

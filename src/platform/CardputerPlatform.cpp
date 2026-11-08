@@ -1,8 +1,12 @@
 #include "CardputerPlatform.h"
+#include "GameFiles.h"
 
 #include <M5Cardputer.h>
 #include <SD.h>
 #include <atomic>
+#include <memory>
+#include <new>
+#include <utility>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 #include <freertos/semphr.h>
@@ -26,11 +30,36 @@ constexpr uint16_t kScreenWidth = 240;
 constexpr uint16_t kScreenHeight = 135;
 constexpr uint16_t kImageWidth = 240;
 constexpr uint16_t kImageHeight = 135;
+constexpr uint8_t kGameListRows = 6;
+constexpr uint8_t kGameListTop = 34;
+constexpr uint8_t kGameListRowHeight = 12;
+constexpr uint16_t kGameListWidth = kScreenWidth - 16;
+constexpr float kGameListTextScale = 10.0f / 8.0f;
+constexpr float kLoadTextScale = 10.0f / 8.0f;
+constexpr float kLoadHeadingScale = 18.0f / 16.0f;
+constexpr float kBootTitleTextScale = 19.0f / 16.0f;
 
 bool gReady = false;
 bool gRomsLoaded = false;
 bool gGameMenuRequested = false;
 bool gAmsdosAvailable = false;
+std::string gGameFolder=cpc_files::kRoot;
+struct SdGameStorage final : cpc_files::Storage {
+  bool scan(const char *path,cpc_files::Visitor visitor,void *context) override {
+    File dir=SD.open(path);
+    if(!dir || !dir.isDirectory()) return false;
+    for(;;) {
+      File item=dir.openNextFile();if(!item) break;
+      const String name=item.name();const bool directory=item.isDirectory();
+      item.close();visitor(context,name.c_str(),directory);
+    }
+    dir.close();return true;
+  }
+  bool exists(const char *path) override {return SD.exists(path);}
+  bool directory(const char *path) override {File file=SD.open(path);return file && file.isDirectory();}
+  bool mkdir(const char *path) override {return SD.mkdir(path);}
+  bool move(const char *from,const char *to) override {return !SD.exists(to) && SD.rename(from,to);}
+} gGameStorage;
 String gAutoKeys;
 unsigned gAutoFrame=0;
 unsigned gAutoDelay=0;
@@ -38,8 +67,9 @@ bool gTabWasDown=false;
 bool gFast=false,gTapeSound=true,gFastKey=false;
 bool gOriginalLoad=true,gForceBorder=false,gBorderKey=false;
 unsigned gFrameCount=0;
-uint8_t gVolume=128; // 50% on the speaker's 0..255 scale
+uint8_t gVolume=cpcDefaultVolume; // 30% on the speaker's 0..255 scale
 uint32_t gVolumeAt=0,gVolumeUntil=0;
+int gVolumeDirection=0;
 // One immutable 8-bit snapshot costs 32 KiB. Skip refreshing while SPI is busy.
 uint8_t gLcdFrame[kImageHeight][kImageWidth];
 std::atomic<bool> gLcdBusy{false};
@@ -55,6 +85,10 @@ struct DisplayLock {
 };
 
 void queueCommand(const String &text) {gAutoKeys=text;gAutoFrame=0;gAutoDelay=150;}
+bool showCpcBorder() {
+  return gForceBorder || cpcTapeBorderVisible(gOriginalLoad,gFast,tape::loaded(),tape::active(),
+                                            tape::position(),tape::fileSize());
+}
 uint8_t gOsRom[16384];
 uint8_t gBasicRom[16384];
 uint8_t gAmsdosRom[16384];
@@ -78,7 +112,9 @@ void drawLcdSnapshot() {
   if(millis()<gLcdVolumeUntil) {
     M5.Display.fillRect(153,122,87,13,TFT_BLACK);
     M5.Display.setTextColor(TFT_WHITE,TFT_BLACK);
+    M5.Display.setTextSize(kLoadTextScale);
     M5.Display.drawString(String("Vol ")+String(unsigned(gLcdVolume)*100/255)+"%",160,124,1);
+    M5.Display.setTextSize(1);
   }
   ++gLcdFrames;
 }
@@ -95,9 +131,11 @@ void lcdTask(void *) {
 void bootStatus(const char *message, const char *detail=nullptr, bool error=false) {
   Serial.printf("CPC BOOT %s%s%s\n",message,detail?" ":"",detail?detail:"");
   M5.Display.fillRect(0,34,kScreenWidth,kScreenHeight-34,TFT_BLACK);
+  M5.Display.setTextSize(kLoadTextScale);
   M5.Display.setTextColor(error?TFT_RED:TFT_WHITE,TFT_BLACK);
   M5.Display.drawString(message,12,45,1);
   if(detail) M5.Display.drawString(detail,12,65,1);
+  M5.Display.setTextSize(1);
 }
 
 bool readExact(const char *path, uint8_t *target) {
@@ -123,15 +161,67 @@ uint16_t word(const uint8_t *data, size_t offset) {
 }
 
 bool isSnaName(const String &name) {
-  return name.endsWith(".SNA") || name.endsWith(".sna");
+  return cpc_files::kindOf(name.c_str())==cpc_files::Kind::sna;
 }
 
 bool isDskName(const String &name) {
-  return name.endsWith(".DSK") || name.endsWith(".dsk");
+  return cpc_files::kindOf(name.c_str())==cpc_files::Kind::dsk;
 }
 
 bool isCdtName(const String &name) {
-  return name.endsWith(".CDT") || name.endsWith(".cdt");
+  return cpc_files::kindOf(name.c_str())==cpc_files::Kind::cdt;
+}
+
+String gameListLabel(const String &path,const lgfx::IFont *font=&fonts::Font0) {
+  const String name = path.substring(path.lastIndexOf('/') + 1);
+  if (M5.Display.textWidth(name, font) <= kGameListWidth) return name;
+  // Keep the file type visible and remove complete UTF-8 characters only.
+  const int dot = name.lastIndexOf('.');
+  const String suffix = dot > 0 ? String("...") + name.substring(dot) : String("...");
+  String stem = dot > 0 ? name.substring(0, dot) : name;
+  while (stem.length() && M5.Display.textWidth(stem + suffix, font) > kGameListWidth) {
+    unsigned end = stem.length() - 1;
+    while (end && (static_cast<uint8_t>(stem[end]) & 0xC0) == 0x80) --end;
+    stem.remove(end);
+  }
+  return stem + suffix;
+}
+
+void printGameFolder(const std::string &folder,const cpc_files::Listing &listing) {
+  Serial.printf("GAMES %s\n",folder.c_str());
+  for(std::size_t i=0;i<listing.count;++i)
+    Serial.printf("%s%s\n",listing.entries[i].name.c_str(),listing.entries[i].directory?"/":"");
+  if(listing.more) Serial.println("MORE (64 entries)");
+  Serial.println("END");
+}
+
+struct VolumeInput {int direction;bool only;};
+VolumeInput volumeInput() {
+  const auto &keys=M5Cardputer.Keyboard.keysState();
+  bool up=false,down=false,regular=false;
+  for(char ch:keys.word) {
+    const int key=cpcVolumeKey(ch,keys.fn);
+    up|=key>0;down|=key<0;regular|=!key;
+  }
+  // The M5 library leaves word empty on the Fn layer.
+  if(keys.fn) {
+    up|=M5Cardputer.Keyboard.isKeyPressed('=') || M5Cardputer.Keyboard.isKeyPressed('+');
+    down|=M5Cardputer.Keyboard.isKeyPressed('-') || M5Cardputer.Keyboard.isKeyPressed('_');
+  }
+  return {int(up)-int(down),(up || down) && !regular};
+}
+bool changeVolume(int direction) {
+  const auto previous=gVolume;
+  gVolume=cpcVolumeStep(gVolume,direction);
+  M5.Speaker.setVolume(gVolume);gVolumeUntil=millis()+1200;
+  return previous!=gVolume;
+}
+bool updateVolume(const VolumeInput &input) {
+  if(!input.direction) {gVolumeDirection=0;return false;}
+  const uint32_t now=millis();
+  if(input.direction==gVolumeDirection && now-gVolumeAt<140) return false;
+  gVolumeDirection=input.direction;gVolumeAt=now;
+  return changeVolume(input.direction);
 }
 
 bool loadSna(const String &path) {
@@ -200,7 +290,9 @@ void begin() {
   M5.Display.setTextSize(1);
   M5.Display.fillScreen(TFT_BLACK);
   M5.Display.setTextColor(TFT_YELLOW);
+  M5.Display.setTextSize(kBootTitleTextScale);
   M5.Display.drawString("Amstrad CPC 464", 12, 10, 2);
+  M5.Display.setTextSize(1);
   bootStatus("Montando tarjeta SD...");
   Serial.printf("CPC BOOT SPI.begin heap=%u max=%u\n",ESP.getFreeHeap(),ESP.getMaxAllocHeap());
   SPI.begin(kSdSck, kSdMiso, kSdMosi, kSdCs);
@@ -249,9 +341,17 @@ void pollKeyboard() {
   M5Cardputer.update();
   while(Serial.available()) {
     char ch=Serial.read();
-    if(ch=='?') Serial.printf("CPC-ADV FIX5 pc=%04x mode=%u heap=%u psram=%u tape=%u frames=%u ms=%u tape_bytes=%u/%u fast=%u audio_packets=%u late=%u max_gap_us=%u lcd=%u volume=%u ay=%u,%u,%u error=%s\n",
+    if(ch=='?') Serial.printf("CPC-ADV FIX9 pc=%04x mode=%u heap=%u psram=%u tape=%u frames=%u ms=%u tape_bytes=%u/%u fast=%u audio_packets=%u late=%u max_gap_us=%u lcd=%u volume=%u ay=%u,%u,%u error=%s\n",
       pc,scrmode,ESP.getFreeHeap(),ESP.getPsramSize(),tape::active(),gFrameCount,millis(),tape::position(),tape::fileSize(),gFast,gAudioPackets,gAudioLate,gAudioMaxGapUs,gLcdFrames.load(),unsigned(M5.Speaker.getVolume())*100/255,psgregs[8],psgregs[9],psgregs[10],tape::mountError());
     if(!gReady) continue;
+    if(ch=='+' || ch=='-') changeVolume(ch=='+'?1:-1);
+    if(ch=='m') gGameMenuRequested=true;
+    if(ch=='o') {
+      M5.Speaker.stop();gAudioLastUs=0;
+      const auto result=cpc_files::organize(gGameStorage);
+      Serial.printf("ORGANIZE ready=%u cdt=%u dsk=%u skipped=%u failed=%u\n",
+                    result.ready,result.cdt,result.dsk,result.skipped,result.failed);
+    }
     if(ch=='c') {gAudioLastUs=gAudioMaxGapUs=gAudioLate=gAudioPackets=0;}
     if(ch=='f') {gFast=!gFast;M5.Speaker.stop();}
     if(ch=='s') {
@@ -261,25 +361,17 @@ void pollKeyboard() {
     }
     if(ch=='v') {
       Serial.print("CPCFRAME 240 135\n");
-      bool border=gForceBorder || (gOriginalLoad && !gFast && tape::loaded());
-      for(unsigned y=0;y<135;++y) for(unsigned x=0;x<240;++x) Serial.write(cpcDisplayPixel(gb_buffer_vga,cpcBorderLines,x,y,border));
+      const bool border=showCpcBorder();
+      const auto active=cpcActiveViewport(crtcregs[1],crtcregs[6],unsigned(crtcregs[9])+1);
+      for(unsigned y=0;y<135;++y) for(unsigned x=0;x<240;++x) Serial.write(cpcDisplayPixel(gb_buffer_vga,cpcBorderLines,x,y,border,active));
       Serial.flush();
     }
     if(ch=='l') {
-      File dir=SD.open("/CPC464/GAMES");
-      while(dir) {File item=dir.openNextFile();if(!item) break;Serial.println(item.name());item.close();}
-      if(dir) dir.close();Serial.println("END");
+      const auto listing=cpc_files::list(gGameStorage,gGameFolder);
+      printGameFolder(gGameFolder,listing);
     }
     if(ch=='d' || ch=='t') {
-      String selected;File dir=SD.open("/CPC464/GAMES");
-      while(dir) {
-        File item=dir.openNextFile();if(!item) break;
-        String name=item.name();name=name.substring(name.lastIndexOf('/')+1);
-        bool valid=!name.startsWith("._") && (ch=='d'?isDskName(name):isCdtName(name));
-        if(valid && (!selected.length() || name.startsWith("Profanation"))) selected=String("/CPC464/GAMES/")+name;
-        item.close();
-      }
-      if(dir) dir.close();
+      const String selected=cpc_files::findMedia(gGameStorage,ch=='d'?cpc_files::Kind::dsk:cpc_files::Kind::cdt).c_str();
       bool ok=selected.length() && (ch=='d'?mountDsk(selected.c_str()):tape::mountCdt(selected.c_str()));
       Serial.printf("MEDIA %s %s\n",selected.c_str(),ok?"OK":ch=='d'?dskMountError():tape::mountError());
       if(ok) {if(ch=='d') tape::eject();resetz80();resetcrtc();queueCommand(ch=='d'?String("|disc\n")+dskBootCommand():String("|tape\nrun\"\n "));}
@@ -287,14 +379,8 @@ void pollKeyboard() {
     if(ch=='3') {gAutoKeys="3";gAutoDelay=0;gAutoFrame=0;}
   }
   const auto &keys=M5Cardputer.Keyboard.keysState();
-  if(keys.fn && millis()-gVolumeAt>=140) {
-    bool up=M5Cardputer.Keyboard.isKeyPressed('=') || M5Cardputer.Keyboard.isKeyPressed('+');
-    bool down=M5Cardputer.Keyboard.isKeyPressed('-');
-    if(up || down) {
-      gVolume=up?min<int>(255,gVolume+15):max<int>(0,gVolume-15);
-      M5.Speaker.setVolume(gVolume);gVolumeAt=millis();gVolumeUntil=gVolumeAt+1200;
-    }
-  }
+  const auto volume=volumeInput();
+  updateVolume(volume);
   bool fastKey=keys.fn && M5Cardputer.Keyboard.isKeyPressed('f');
   if(fastKey && !gFastKey) {gFast=!gFast;M5.Speaker.stop();}
   gFastKey=fastKey;
@@ -315,7 +401,7 @@ void pollKeyboard() {
     ++gAutoFrame;return;
   }
   for(char ch:keys.word) {
-    if(keys.fn && (ch=='=' || ch=='+' || ch=='-')) continue;
+    if(cpcVolumeKey(ch,keys.fn)) continue;
     uint8_t row,bit;bool shift;
     // Fn + the printed arrow keys controls both CPC cursors and joystick 0.
     if(keys.fn && (ch==';' || ch==',' || ch=='.' || ch=='/')) {
@@ -333,8 +419,8 @@ void pollKeyboard() {
   if(keys.down) {setKey(0,2,true);setKey(9,1,true);}
   if(keys.left) {setKey(1,0,true);setKey(9,2,true);}
   if(keys.right) {setKey(0,1,true);setKey(9,3,true);}
-  if(keys.shift) setKey(2,5,true);
-  if(keys.ctrl) setKey(2,7,true);
+  if(keys.shift && !volume.only) setKey(2,5,true);
+  if(keys.ctrl && !volume.only) setKey(2,7,true);
   const bool functionKeys[9]={keys.f1,keys.f2,keys.f3,keys.f4,keys.f5,keys.f6,keys.f7,keys.f8,keys.f9};
   const uint8_t functionRows[9]={1,1,0,2,1,0,1,1,0};
   const uint8_t functionBits[9]={5,6,5,4,4,4,2,3,3};
@@ -349,57 +435,99 @@ bool openGameMenu() {
   gAutoKeys="";
   M5.Speaker.stop();
   gAudioLastUs=0;
-  String games[64];
-  uint8_t count = 0;
-  File directory = SD.open("/CPC464/GAMES");
-  while (directory && count < 64) {
-    File item = directory.openNextFile();
-    if (!item) break;
-    const String name = item.name();
-    const String baseName = name.substring(name.lastIndexOf('/') + 1);
-    if (!item.isDirectory() && !baseName.startsWith("._") &&
-        (isSnaName(name) || isDskName(name) || isCdtName(name))) {
-      games[count++] = String("/CPC464/GAMES/") + baseName;
-    }
-    item.close();
+  std::unique_ptr<cpc_files::Listing> storage(new(std::nothrow) cpc_files::Listing);
+  if(!storage) {
+    M5.Display.fillScreen(TFT_BLACK);M5.Display.setTextSize(1);M5.Display.setTextColor(TFT_RED,TFT_BLACK);
+    M5.Display.drawString("Sin memoria para la lista",8,45,1);delay(1200);return true;
   }
-  if (directory) directory.close();
-
-  uint8_t selected = 0;
+  auto &games=*storage;
+  cpc_files::list(gGameStorage,gGameFolder,games);
+  if(!games.ok && gGameFolder!=cpc_files::kRoot) {
+    gGameFolder=cpc_files::kRoot;cpc_files::list(gGameStorage,gGameFolder,games);
+  }
+  std::size_t selected=0;
+  const char *folderError=nullptr;
+  auto changeFolder=[&](const std::string &path) {
+    if(!gGameStorage.directory(path.c_str())) {folderError="No se puede abrir carpeta";return false;}
+    // Release old filenames before reading the next directory on a small heap.
+    if(!cpc_files::list(gGameStorage,path,games)) {
+      cpc_files::list(gGameStorage,gGameFolder,games);selected=0;
+      folderError="No se puede abrir carpeta";return false;
+    }
+    gGameFolder=path;selected=0;folderError=nullptr;return true;
+  };
   bool previous = false;
   bool next = false;
   bool enter = false;
+  bool back = false;
   bool redraw = true;
   bool soundKey=false;
   while (true) {
     M5Cardputer.update();
+    if(updateVolume(volumeInput())) redraw=true;
+    const bool hasParent=gGameFolder!=cpc_files::kRoot;
+    const std::size_t count=games.count+(hasParent?1:0);
     if (redraw) {
       M5.Display.fillScreen(TFT_BLACK);
       M5.Display.setTextColor(TFT_YELLOW);
-      M5.Display.drawString("Juegos CPC - FIX5", 8, 4, 2);
-      M5.Display.drawString(gOriginalLoad?"O:original ON  R:rapida":"O:original  R:rapida ON",8,20,1);
+      M5.Display.setTextSize(1);
+      const String title=hasParent?String("Juegos - ")+cpc_files::baseName(gGameFolder).c_str():String("Juegos CPC - FIX9");
+      M5.Display.drawString(gameListLabel(title,&fonts::Font2), 8, 4, 2);
+      M5.Display.setTextSize(kLoadTextScale);
+      M5.Display.drawString(gOriginalLoad?"O:original ON  R:rapida":"O:original  R:rapida ON",8,22,1);
       M5.Display.setTextColor(TFT_WHITE);
-      if (!count) {
-        M5.Display.drawString("Sin .SNA/.DSK/.CDT", 8, 42, 1);
-        M5.Display.drawString("/CPC464/GAMES", 8, 57, 1);
-      } else {
-        const uint8_t first = selected > 5 ? selected - 5 : 0;
-        for (uint8_t i = first; i < count && i < first + 6; ++i) {
-          const String label = games[i].substring(games[i].lastIndexOf('/') + 1);
+      if (count) {
+        // Original 8-pixel font, enlarged by just 2 pixels; keep six rows.
+        M5.Display.setTextSize(kGameListTextScale);
+        const std::size_t first = selected >= kGameListRows ? selected - kGameListRows + 1 : 0;
+        for (auto i = first; i < count && i < first + kGameListRows; ++i) {
+          String label;
+          if(hasParent && !i) label="[ .. ] Volver";
+          else {
+            const auto &entry=games.entries[i-(hasParent?1:0)];
+            label=gameListLabel(entry.directory?String("[ ")+entry.name.c_str()+" ]":String(entry.name.c_str()));
+          }
+          const uint16_t y = kGameListTop + (i - first) * kGameListRowHeight;
+          if (i == selected) M5.Display.fillRect(8, y, kGameListWidth, kGameListRowHeight, TFT_YELLOW);
           M5.Display.setTextColor(i == selected ? TFT_BLACK : TFT_WHITE,
                                   i == selected ? TFT_YELLOW : TFT_BLACK);
-          M5.Display.drawString(label, 8, 28 + (i - first) * 13, 1);
+          M5.Display.drawString(label, 8, y, 1);
         }
+        M5.Display.setTextSize(1);
+      }
+      M5.Display.setTextSize(kLoadTextScale);
+      if(!games.count) {
+        M5.Display.setTextColor(TFT_WHITE,TFT_BLACK);
+        M5.Display.drawString(games.ok?"Carpeta vacia":"No se puede leer SD",8,kGameListTop+(hasParent?18:0),1);
       }
       M5.Display.setTextColor(TFT_DARKGREY);
-      M5.Display.drawString(gTapeSound?"S: sonido cinta ON":"S: sonido cinta OFF",8,108,1);
-      M5.Display.drawString(" , . elegir Enter cargar ` salir", 3, 122, 1);
+      M5.Display.drawString(String(gTapeSound?"S:ON ":"S:OFF ")+"Vol:"+String(unsigned(gVolume)*100/255)+"%",8,108,1);
+      if(hasParent) M5.Display.drawString("Del:volver",150,108,1);
+      if(folderError) {
+        M5.Display.fillRect(0,107,kScreenWidth,13,TFT_BLACK);
+        M5.Display.setTextColor(TFT_RED,TFT_BLACK);
+        M5.Display.drawString(folderError,8,108,1);
+      }
+      M5.Display.drawString(", . mover Enter abrir ` salir", 3, 122, 1);
+      M5.Display.setTextSize(1);
       redraw = false;
     }
 
     const auto &state = M5Cardputer.Keyboard.keysState();
-    bool nowPrevious = false, nowNext = false;
+    bool nowPrevious = state.up, nowNext = state.down;
+    bool nowEnter=state.enter,nowBack=state.backspace || state.del;
     bool nowSound=false;
+    while(Serial.available()) {
+      const char command=Serial.read();
+      if(command=='+' || command=='-') {changeVolume(command=='+'?1:-1);redraw=true;}
+      if(command=='l') printGameFolder(gGameFolder,games);
+      if(command=='?') Serial.printf("MENU %s selected=%u entries=%u volume=%u\n",gGameFolder.c_str(),unsigned(selected),unsigned(count),unsigned(gVolume)*100/255);
+      if(command=='j') nowNext=true;
+      if(command=='k') nowPrevious=true;
+      if(command=='e') nowEnter=true;
+      if(command=='b') nowBack=true;
+      if(command=='q') return true;
+    }
     for (char key : state.word) {
       nowSound |= key=='s' || key=='S';
       if(key=='o' || key=='O') {gOriginalLoad=true;gFast=false;gTapeSound=true;cpc_audio::setTapeSound(true);redraw=true;}
@@ -410,51 +538,73 @@ bool openGameMenu() {
     }
     if(nowSound && !soundKey) {gTapeSound=!gTapeSound;cpc_audio::setTapeSound(gTapeSound);redraw=true;}
     soundKey=nowSound;
+    if(nowBack && !back && hasParent) {
+      changeFolder(cpc_files::parent(gGameFolder));
+      redraw=true;back=true;enter=nowEnter;previous=nowPrevious;next=nowNext;
+      continue;
+    }
     if (count && nowPrevious && !previous) { selected = (selected + count - 1) % count; redraw = true; }
     if (count && nowNext && !next) { selected = (selected + 1) % count; redraw = true; }
-    if (count && state.enter && !enter) {
-      if(isDskName(games[selected]) && !gAmsdosAvailable) {
+    if (count && nowEnter && !enter) {
+      if(hasParent && !selected) {
+        changeFolder(cpc_files::parent(gGameFolder));redraw=true;enter=true;continue;
+      }
+      const auto &entry=games.entries[selected-(hasParent?1:0)];
+      const auto path=cpc_files::child(gGameFolder,entry.name);
+      if(entry.directory) {
+        changeFolder(path);redraw=true;enter=true;continue;
+      }
+      const String selectedFile=path.c_str();
+      if(isDskName(selectedFile) && !gAmsdosAvailable) {
         M5.Display.setTextColor(TFT_RED,TFT_BLACK);
+        M5.Display.setTextSize(kLoadTextScale);
         M5.Display.drawString("Falta /CPC464/AMSDOS.ROM",8,108,1);
+        M5.Display.setTextSize(1);
         delay(1800);enter=true;redraw=true;continue;
       }
       M5.Display.fillScreen(TFT_BLACK);
       M5.Display.setTextColor(TFT_WHITE,TFT_BLACK);
+      M5.Display.setTextSize(kLoadHeadingScale);
       M5.Display.drawString("Montando imagen...",8,40,2);
-      const bool loaded = isSnaName(games[selected]) ? loadSna(games[selected]) :
-                          isDskName(games[selected]) ? mountDsk(games[selected].c_str()) :
-                          tape::mountCdt(games[selected].c_str());
+      M5.Display.setTextSize(1);
+      const bool loaded = isSnaName(selectedFile) ? loadSna(selectedFile) :
+                          isDskName(selectedFile) ? mountDsk(selectedFile.c_str()) :
+                          tape::mountCdt(selectedFile.c_str());
       if (!loaded) {
         M5.Display.setTextColor(TFT_RED);
-        M5.Display.drawString(isSnaName(games[selected]) ? "SNA invalido" :
-                              isDskName(games[selected]) ? dskMountError() : tape::mountError(),
+        M5.Display.setTextSize(kLoadTextScale);
+        M5.Display.drawString(isSnaName(selectedFile) ? "SNA invalido" :
+                              isDskName(selectedFile) ? dskMountError() : tape::mountError(),
                               8, 104, 1);
+        M5.Display.setTextSize(1);
         delay(1800);
         enter=true;
         redraw = true;
         continue;
       }
-      if (isDskName(games[selected]) || isCdtName(games[selected])) {
-        if(isDskName(games[selected])) tape::eject();
+      if (isDskName(selectedFile) || isCdtName(selectedFile)) {
+        if(isDskName(selectedFile)) tape::eject();
         resetz80();
         resetcrtc();
-        if(isDskName(games[selected])) queueCommand(String("|disc\n") + dskBootCommand());
+        if(isDskName(selectedFile)) queueCommand(String("|disc\n") + dskBootCommand());
         else queueCommand("|tape\nrun\"\n ");
       }
       return false;
     }
     previous = nowPrevious;
     next = nowNext;
-    enter = state.enter;
+    enter = nowEnter;
+    back = nowBack;
     delay(20);
   }
 }
 
 void present() {
   if(gLcdBusy.load(std::memory_order_acquire)) return;
-  const bool border=gForceBorder || (gOriginalLoad && !gFast && tape::loaded());
+  const bool border=showCpcBorder();
+  const auto active=cpcActiveViewport(crtcregs[1],crtcregs[6],unsigned(crtcregs[9])+1);
   for(unsigned y=0;y<kImageHeight;++y) for(unsigned x=0;x<kImageWidth;++x)
-    gLcdFrame[y][x]=cpcDisplayPixel(gb_buffer_vga,cpcBorderLines,x,y,border);
+    gLcdFrame[y][x]=cpcDisplayPixel(gb_buffer_vga,cpcBorderLines,x,y,border,active);
   gLcdVolume=gVolume;gLcdVolumeUntil=gVolumeUntil;
   if(gLcdTask) {
     gLcdBusy.store(true,std::memory_order_release);

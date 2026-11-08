@@ -11,3 +11,5 @@ jobs:
       - uses: actions/checkout@v4
       - name: Test keyboard, palette, tape, FDC and AY without copyrighted media
         run: sh scripts/check-peripherals.sh
+      - name: Test SD folder browsing and file organization
+        run: sh scripts/check-game-files.sh
